@@ -347,7 +347,7 @@ async def handle_confirm_selection(callback_query: types.CallbackQuery):
     current_user_counts = user_selections_map.get(user.id, {}) # Получаем выбор конкретного пользователя
     
     user_mention = f"@{user.username}" if user.username else f"{user.first_name}"
-    summary_text = f"**{user_mention}, ваш выбор:**\n\n"
+    summary_text = f"<b>{user_mention}, ваш выбор:</b>\n\n"
     total_sum = Decimal("0.00")
     has_selected_items = False
 
@@ -378,13 +378,14 @@ async def handle_confirm_selection(callback_query: types.CallbackQuery):
     if not has_selected_items:
         summary_text = f"{user_mention}, вы ничего не выбрали."
     else:
-        summary_text += f"\n**Итоговая сумма для {user_mention}: {total_sum:.2f}**"
+        summary_text += f"\n<b>Итоговая сумма: {total_sum:.2f}</b>"
 
     # Отправляем новое сообщение с итогом для пользователя
     try:
         await bot.send_message(
             chat_id=message.chat.id, 
-            text=summary_text, 
+            text=summary_text,
+            parse_mode="HTML",
             # reply_to_message_id=message.message_id # Можно раскомментировать, чтобы ответ был привязан к сообщению с чеком
         )
         await callback_query.answer("Ваш выбор подтвержден и отправлен в чат!")
