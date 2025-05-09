@@ -1,0 +1,19 @@
+# Файлы окружения
+.env
+
+# Учетные данные (локальные, не для VCS)
+credentials/
+
+# Папки виртуального окружения
+venv/
+.venv/
+
+# Файлы Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Файлы IDE
+.idea/
+.vscode/ 
