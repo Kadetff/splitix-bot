@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 def extract_items_from_openai_response(parsed_json_data: dict) -> tuple[list[dict] | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
+    logger.info("Начало извлечения данных из ответа OpenAI.")
     if not parsed_json_data or "items" not in parsed_json_data or not isinstance(parsed_json_data["items"], list):
         logger.warning(f"Неожиданный формат JSON от OpenAI или нет ключа 'items': {parsed_json_data}")
         return None, None, None, None, None
@@ -74,21 +75,24 @@ def extract_items_from_openai_response(parsed_json_data: dict) -> tuple[list[dic
             logger.warning(f"Не удалось распарсить total_check_amount: {parsed_json_data.get('total_check_amount')}")
     
     # Получаем общую скидку на чек, если она есть (в процентах или абсолютном выражении)
-    total_discount = None
+    total_discount_percent = None
     total_discount_amount = None
     
     if "total_discount_percent" in parsed_json_data:
         try:
-            total_discount = Decimal(str(parsed_json_data["total_discount_percent"]))
+            total_discount_percent = Decimal(str(parsed_json_data["total_discount_percent"]))
         except (InvalidOperation, TypeError):
             logger.warning(f"Не удалось распарсить total_discount_percent: {parsed_json_data.get('total_discount_percent')}")
-    elif "total_discount_amount" in parsed_json_data:
+    
+    if "total_discount_amount" in parsed_json_data:
         try:
             total_discount_amount = Decimal(str(parsed_json_data["total_discount_amount"]))
         except (InvalidOperation, TypeError):
             logger.warning(f"Не удалось распарсить total_discount_amount: {parsed_json_data.get('total_discount_amount')}")
     
-    return processed_items, service_charge, total_check_amount, total_discount, total_discount_amount
+    logger.info(f"Извлечено {len(processed_items)} товаров из ответа OpenAI.")
+    logger.info(f"service_charge: {service_charge}; total_check_amount: {total_check_amount}; total_discount_amount: {total_discount_amount}; total_discount_percent: {total_discount_percent}")
+    return processed_items, service_charge, total_check_amount, total_discount_percent, total_discount_amount
 
 async def process_receipt_with_openai(image_data: bytes) -> tuple[list[dict] | None, Decimal | None, Decimal | None, Decimal | None, Decimal | None]:
     try:
@@ -127,6 +131,7 @@ async def process_receipt_with_openai(image_data: bytes) -> tuple[list[dict] | N
         8. VAT / НДС — не считать скидкой.
         9. Все числа — тип float или int, только точка как разделитель.
         10. Если не можешь определить значение — используй null или не включай поле.
+        11. Если нельзя с уверенностью определить, к какому товару относится скидка, не указывай её в item.discount_amount, а отнеси в общую total_discount_amount.
         ВАЖНО: Верни ТОЛЬКО JSON, без текста до или после.
         """
         

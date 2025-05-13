@@ -40,7 +40,7 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         
         # Обрабатываем чек через OpenAI
         logger.info("Отправляем фото в OpenAI для анализа...")
-        items, service_charge, total_check_amount, total_discount, total_discount_amount = await process_receipt_with_openai(image_data)
+        items, service_charge, total_check_amount, total_discount_percent, total_discount_amount = await process_receipt_with_openai(image_data)
         
         if not items:
             logger.warning("OpenAI не смог распознать товарные позиции в чеке")
@@ -50,48 +50,45 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         
         logger.info(f"Успешно распознано {len(items)} позиций в чеке")
         
-        # Проверяем сумму
-        calculated_total = Decimal("0.00")
-        total_before_discounts = Decimal("0.00")
-        total_discounts = Decimal("0.00")
-        
+        # Переименовываем total_before_discounts и улучшаем расчеты
+        total_items_cost = Decimal("0.00")  # Стоимость всех товарных позиций до применения скидок
+        total_discounts = total_discount_amount if total_discount_amount is not None else Decimal("0.00")
+
         # Считаем сумму до скидок и сумму скидок
         for item in items:
             if item["total_amount_from_openai"] is not None:
                 item_total = item["total_amount_from_openai"]
-                total_before_discounts += item_total
-                
-                # Считаем скидку на позицию
-                if item.get("discount_percent") is not None:
-                    discount_amount = (item_total * item["discount_percent"] / Decimal("100")).quantize(Decimal("0.01"))
-                    total_discounts += discount_amount
-                elif item.get("discount_amount") is not None:
-                    total_discounts += item["discount_amount"]
+                total_items_cost += item_total
         
         # Итоговая сумма = сумма до скидок - сумма скидок
-        calculated_total = total_before_discounts - total_discounts
+        calculated_total = total_items_cost - total_discounts
         
         # Добавляем сервисный сбор, если есть
+        service_charge_amount = Decimal("0.00")
         if service_charge is not None:
             service_charge_amount = (calculated_total * service_charge / Decimal("100")).quantize(Decimal("0.01"))
             calculated_total += service_charge_amount
 
         # Формируем сообщение о распознанных позициях
-        response_msg_text = "Распознанные позиции. Выберите количество или подтвердите:\n"
+        response_msg_text = "Позиции из чека — выберите, что добавить в свой счёт:\n"
         
         # Добавляем информацию о скидках
-        if total_discount is not None:
+        if total_discount_percent is not None or total_discount_amount is not None:
             # Рассчитываем фактический процент скидки
-            if total_before_discounts > 0:
-                actual_discount_percent = (total_discounts * Decimal("100") / total_before_discounts).quantize(Decimal("0.01"))
-                response_msg_text += f"\n🎉 Общая скидка: {actual_discount_percent}% (сумма скидок: {total_discounts:.2f})"
+            if total_items_cost > 0:
+                actual_discount_percent = (total_discounts * Decimal("100") / total_items_cost).quantize(Decimal("0.01"))
+                response_msg_text += f"\n🎉 Применена скидка: {actual_discount_percent}% (-{total_discounts:.2f})"
+        
+        # Добавляем информацию о сервисном сборе
+        if service_charge is not None:
+            response_msg_text += f"\n💰 Сервисный сбор: {service_charge}% (+{service_charge_amount:.2f})"
         
         # Добавляем информацию о совпадении сумм
         if total_check_amount is not None:
             if abs(calculated_total - total_check_amount) < Decimal("0.01"):  # Учитываем возможные погрешности округления
-                response_msg_text += f"\n✅ Сумма в чеке ({total_check_amount:.2f}) совпадает с суммой позиций ({calculated_total:.2f})"
+                response_msg_text += f"\n✅ Итоговая сумма: {total_check_amount:.2f} (совпадает с расчетом)"
             else:
-                response_msg_text += f"\n⚠️ Внимание: сумма в чеке ({total_check_amount:.2f}) не совпадает с суммой позиций ({calculated_total:.2f})"
+                response_msg_text += f"\n⚠️ Внимание: сумма в чеке ({total_check_amount:.2f}) не совпадает с расчетом ({calculated_total:.2f}). Возможно есть ошибки в распознавании."
         
         # Создаем пустой словарь счетчиков для пользователя
         empty_user_counts = {}
@@ -102,7 +99,7 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         logger.info("Отправляем сообщение с результатами и клавиатурой")
         # Отправляем сообщение с информацией о чеке и клавиатурой
         result_message = await processing_message.edit_text(
-            response_msg_text + "\n\nВыберите товары, которые вы хотите добавить в свой счет:",
+            response_msg_text,
             reply_markup=keyboard
         )
         
@@ -112,8 +109,9 @@ async def process_receipt_photo(message: Message, state: FSMContext):
             "user_selections": {},  # Пустой словарь для выборов пользователей
             "service_charge_percent": service_charge,
             "total_check_amount": total_check_amount,
-            "total_discount_percent": total_discount,
-            "total_discount_amount": total_discount_amount
+            "total_discount_percent": total_discount_percent,
+            "total_discount_amount": total_discount_amount,
+            "actual_discount_percent": actual_discount_percent,
         }
         
         logger.info(f"Состояние сохранено для message_id: {result_message.message_id}")

@@ -85,7 +85,7 @@ async def handle_confirm_selection(callback: CallbackQuery, state: FSMContext):
         message_data = message_states[message_id]
         items = message_data.get("items", [])
         service_charge_percent = message_data.get("service_charge_percent")
-        total_discount_percent = message_data.get("total_discount_percent")
+        actual_discount_percent = message_data.get("actual_discount_percent")
         total_discount_amount = message_data.get("total_discount_amount")
         
         # Получаем user_id
@@ -164,10 +164,10 @@ async def handle_confirm_selection(callback: CallbackQuery, state: FSMContext):
             summary += f"\n<b>Плата за обслуживание ({service_charge_percent}%): {service_amount:.2f}</b>"
         
         # Добавляем информацию об общей скидке
-        if total_discount_percent is not None:
-            discount_amount = (total_sum * total_discount_percent / Decimal("100")).quantize(Decimal("0.01"))
+        if actual_discount_percent is not None:
+            discount_amount = (total_sum * actual_discount_percent / Decimal("100")).quantize(Decimal("0.01"))
             total_sum -= discount_amount
-            summary += f"\n<b>Скидка ({total_discount_percent}%): -{discount_amount:.2f}</b>"
+            summary += f"\n<b>Скидка ({actual_discount_percent}%): -{discount_amount:.2f}</b>"
         elif total_discount_amount is not None and total_check_sum > 0:
             user_discount = (total_discount_amount * total_sum / total_check_sum).quantize(Decimal("0.01"))
             total_sum -= user_discount
