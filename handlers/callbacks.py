@@ -164,7 +164,7 @@ async def handle_confirm_selection(callback: CallbackQuery, state: FSMContext):
             summary += f"\n<b>Плата за обслуживание ({service_charge_percent}%): {service_amount:.2f}</b>"
         
         # Добавляем информацию об общей скидке
-        if actual_discount_percent is not None:
+        if actual_discount_percent is not None and actual_discount_percent > 0:
             discount_amount = (total_sum * actual_discount_percent / Decimal("100")).quantize(Decimal("0.01"))
             total_sum -= discount_amount
             summary += f"\n<b>Скидка ({actual_discount_percent}%): -{discount_amount:.2f}</b>"
