@@ -72,6 +72,9 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         # Формируем сообщение о распознанных позициях
         response_msg_text = "Позиции из чека — выберите, что добавить в свой счёт:\n"
         
+        # Инициализируем переменную actual_discount_percent до условного блока
+        actual_discount_percent = Decimal("0.00")
+        
         # Добавляем информацию о скидках
         if total_discount_percent is not None or total_discount_amount is not None:
             # Рассчитываем фактический процент скидки
