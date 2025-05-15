@@ -1,4 +1,6 @@
 import logging
+import aiohttp
+import json
 from decimal import Decimal
 from aiogram import F, Router
 from aiogram.types import Message
@@ -8,6 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 from services.openai_service import process_receipt_with_openai
 from utils.keyboards import create_items_keyboard_with_counters
 from typing import Dict, Any
+from config.settings import WEBAPP_URL
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -18,6 +21,51 @@ class ReceiptStates(StatesGroup):
 
 # Будет установлено из main.py
 message_states: Dict[int, Dict[str, Any]] = {}
+
+async def save_receipt_data_to_api(message_id: int, data: Dict[str, Any]) -> bool:
+    """Сохраняет данные чека в API для веб-приложения"""
+    if not WEBAPP_URL:
+        logger.warning("WEBAPP_URL не настроен, данные не будут сохранены в API")
+        return False
+    
+    try:
+        # Очищаем URL от кавычек, если они есть
+        clean_url = WEBAPP_URL.strip('"\'')
+        api_url = f"{clean_url}/api/receipt/{message_id}"
+        
+        logger.info(f"Сохранение данных чека в API: {api_url}")
+        
+        # Преобразуем Decimal в строки для корректной сериализации в JSON
+        serializable_data = {}
+        for key, value in data.items():
+            if key == "items":
+                serializable_data[key] = []
+                for item in value:
+                    serializable_item = {}
+                    for item_key, item_value in item.items():
+                        if isinstance(item_value, Decimal):
+                            serializable_item[item_key] = float(item_value)
+                        else:
+                            serializable_item[item_key] = item_value
+                    serializable_data[key].append(serializable_item)
+            elif isinstance(value, Decimal):
+                serializable_data[key] = float(value)
+            else:
+                serializable_data[key] = value
+        
+        logger.debug(f"Сериализуемые данные для API: {json.dumps(serializable_data)[:500]}...")
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(api_url, json=serializable_data) as response:
+                if response.status == 200:
+                    logger.info(f"Данные чека успешно сохранены в API для message_id: {message_id}")
+                    return True
+                else:
+                    logger.error(f"Ошибка при сохранении данных в API: {response.status}, {await response.text()}")
+                    return False
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении данных в API: {e}", exc_info=True)
+        return False
 
 async def process_receipt_photo(message: Message, state: FSMContext):
     try:
@@ -96,8 +144,23 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         # Создаем пустой словарь счетчиков для пользователя
         empty_user_counts = {}
         
+        # Сохраняем данные в глобальный словарь message_states
+        receipt_data = {
+            "items": items,
+            "user_selections": {},  # Пустой словарь для выборов пользователей
+            "service_charge_percent": service_charge,
+            "total_check_amount": total_check_amount,
+            "total_discount_percent": total_discount_percent,
+            "total_discount_amount": total_discount_amount,
+            "actual_discount_percent": actual_discount_percent,
+        }
+        
+        # Сохраняем данные в API для веб-приложения
+        message_id = processing_message.message_id
+        api_saved = await save_receipt_data_to_api(message_id, receipt_data)
+        
         # Создаем клавиатуру выбора
-        keyboard = create_items_keyboard_with_counters(items, empty_user_counts)
+        keyboard = create_items_keyboard_with_counters(items, empty_user_counts, message_id=message_id)
         
         logger.info("Отправляем сообщение с результатами и клавиатурой")
         # Отправляем сообщение с информацией о чеке и клавиатурой
@@ -107,15 +170,13 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         )
         
         # Сохраняем данные в глобальный словарь message_states
-        message_states[result_message.message_id] = {
-            "items": items,
-            "user_selections": {},  # Пустой словарь для выборов пользователей
-            "service_charge_percent": service_charge,
-            "total_check_amount": total_check_amount,
-            "total_discount_percent": total_discount_percent,
-            "total_discount_amount": total_discount_amount,
-            "actual_discount_percent": actual_discount_percent,
-        }
+        message_states[result_message.message_id] = receipt_data
+        
+        # Добавляем информацию о статусе сохранения в API
+        if api_saved:
+            logger.info(f"Данные успешно сохранены в API для message_id: {result_message.message_id}")
+        else:
+            logger.warning(f"Не удалось сохранить данные в API для message_id: {result_message.message_id}")
         
         logger.info(f"Состояние сохранено для message_id: {result_message.message_id}")
         

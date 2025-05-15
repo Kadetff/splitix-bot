@@ -1,13 +1,21 @@
 import asyncio
 import logging
+import sys
 from typing import Any
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from config.settings import TELEGRAM_BOT_TOKEN, LOG_LEVEL
-from handlers import photo, callbacks, commands
+from handlers import photo, callbacks, commands, webapp
 
-# Включим логирование, чтобы видеть ошибки
-logging.basicConfig(level=LOG_LEVEL)
+# Настраиваем логирование
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("bot.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # Инициализация бота и диспетчера
@@ -21,14 +29,17 @@ message_states: dict[int, dict[str, Any]] = {}
 # Экспорт message_states для использования в обработчиках
 callbacks.message_states = message_states
 photo.message_states = message_states
+webapp.message_states = message_states
 
 async def main():
     logger.info("Бот запускается с OpenAI GPT Vision и подтверждением выбора...")
+    logger.info(f"Уровень логирования: {LOG_LEVEL}")
     
     # Регистрация роутеров из handlers
     dp.include_router(commands.router)
     dp.include_router(photo.router)
     dp.include_router(callbacks.router)
+    dp.include_router(webapp.router)
     
     await dp.start_polling(bot)
 

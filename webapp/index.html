@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Разделение чека</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .item {
+            background-color: white;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .item-info {
+            flex: 1;
+        }
+        .item-name {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .item-price {
+            color: #666;
+        }
+        .counter {
+            display: flex;
+            align-items: center;
+        }
+        .counter button {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background-color: #f0f0f0;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        .counter button:hover {
+            background-color: #e0e0e0;
+        }
+        .counter span {
+            margin: 0 10px;
+            font-weight: bold;
+            min-width: 30px;
+            text-align: center;
+        }
+        .summary {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: white;
+            padding: 16px;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .summary-total {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .confirm-btn {
+            background-color: #0088cc;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .confirm-btn:hover {
+            background-color: #006699;
+        }
+        .back-btn {
+            background-color: #f0f0f0;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            margin-right: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .back-btn:hover {
+            background-color: #e0e0e0;
+        }
+        .items-container {
+            margin-bottom: 70px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: red;
+        }
+        .debug-info {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0 80px 0;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-wrap: break-word;
+            display: none; /* Скрываем по умолчанию */
+        }
+        .debug-btn {
+            background-color: #f0f0f0;
+            border: none;
+            border-radius: 8px;
+            padding: 5px 10px;
+            margin: 5px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .debug-panel {
+            text-align: center;
+            margin-top: 30px;
+            padding-bottom: 80px;
+        }
+        .toggle-debug-btn {
+            background-color: #f0f0f0;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        .receipt-info {
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .receipt-info p {
+            margin: 5px 0;
+        }
+        .receipt-info .discount {
+            color: #e74c3c;
+        }
+        .receipt-info .service-charge {
+            color: #3498db;
+        }
+        .receipt-info .total {
+            font-weight: bold;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        .calculation-details {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px dashed #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Выберите позиции</h1>
+    </div>
+    
+    <!-- Информация о чеке -->
+    <div class="receipt-info" id="receipt-info">
+        <p>Загрузка информации о чеке...</p>
+    </div>
+    
+    <div class="items-container" id="items-container">
+        <div class="loading">Загрузка данных...</div>
+    </div>
+    
+    <!-- Отладочная панель внизу страницы -->
+    <div class="debug-panel">
+        <button class="toggle-debug-btn" id="toggle-debug-btn">Показать отладочную информацию</button>
+        <div class="debug-info" id="debug-info">
+            Инициализация...
+        </div>
+        <div>
+            <button class="debug-btn" id="test-data-btn">Загрузить тестовые данные</button>
+            <button class="debug-btn" id="check-tg-btn">Проверить Telegram WebApp</button>
+            <button class="debug-btn" id="send-test-data-btn">Отправить тестовые данные</button>
+        </div>
+    </div>
+    
+    <div class="summary">
+        <div>
+            <button class="back-btn" id="back-btn">Вернуться к боту</button>
+        </div>
+        <div class="summary-total" id="total">Итого: 0.00</div>
+        <div>
+            <button class="confirm-btn" id="confirm-btn">Подтвердить</button>
+        </div>
+    </div>
+
+    <script>
+        // Базовый URL API
+        const API_BASE_URL = window.location.origin;
+        
+        // Инициализация Telegram WebApp
+        let tg = window.Telegram ? window.Telegram.WebApp : null;
+        let isTelegramWebApp = !!tg;
+        
+        // Отладочная информация
+        const debugInfo = document.getElementById('debug-info');
+        debugInfo.innerHTML = `
+            <strong>Отладочная информация:</strong><br>
+            Telegram WebApp доступен: ${isTelegramWebApp}<br>
+            URL: ${window.location.href}<br>
+            API URL: ${API_BASE_URL}<br>
+        `;
+        
+        // Если Telegram WebApp доступен, расширяем окно
+        if (tg) {
+            tg.expand();
+            debugInfo.innerHTML += `
+                initData: ${tg.initData ? 'доступен' : 'недоступен'}<br>
+                initDataUnsafe: ${tg.initDataUnsafe ? JSON.stringify(tg.initDataUnsafe) : 'недоступен'}<br>
+            `;
+        }
+        
+        // Получаем данные из Telegram WebApp
+        let initData = tg ? tg.initData || '' : '';
+        let initDataUnsafe = tg ? tg.initDataUnsafe || {} : {};
+        
+        // Переменные для хранения данных
+        let items = [];
+        let userCounts = {};
+        let messageId = 0;
+        let userId = 0;
+        let receiptData = null;
+        
+        // Функция для инициализации приложения
+        function initApp() {
+            // Пытаемся получить данные из Telegram WebApp
+            try {
+                if (isTelegramWebApp && initDataUnsafe) {
+                    // Получаем ID пользователя
+                    if (initDataUnsafe.user) {
+                        userId = initDataUnsafe.user.id;
+                        debugInfo.innerHTML += `user_id: ${userId}<br>`;
+                    }
+                    
+                    // Пытаемся получить message_id из пути URL
+                    const pathParts = window.location.pathname.split('/');
+                    const lastPathPart = pathParts[pathParts.length - 1];
+                    
+                    // Проверяем, является ли последняя часть пути числом
+                    if (/^\d+$/.test(lastPathPart)) {
+                        messageId = parseInt(lastPathPart);
+                        debugInfo.innerHTML += `message_id из URL: ${messageId}<br>`;
+                        
+                        // Запрашиваем данные с сервера
+                        fetchReceiptData(messageId);
+                    } else if (initDataUnsafe.start_param) {
+                        // Если не нашли в пути, пробуем получить из start_param
+                        const startParam = initDataUnsafe.start_param;
+                        messageId = parseInt(startParam);
+                        
+                        debugInfo.innerHTML += `start_param: ${startParam}, messageId: ${messageId}<br>`;
+                        
+                        // Запрашиваем данные с сервера
+                        fetchReceiptData(messageId);
+                    } else {
+                        // Если не нашли нигде, показываем сообщение
+                        debugInfo.innerHTML += `<span style="color: red;">message_id не найден ни в URL, ни в start_param</span><br>`;
+                        showError('Не удалось получить ID сообщения. Попробуйте открыть приложение из Telegram.');
+                    }
+                } else {
+                    // Если нет параметров, показываем сообщение
+                    if (!isTelegramWebApp) {
+                        debugInfo.innerHTML += `<span style="color: red;">Telegram WebApp не инициализирован</span><br>`;
+                    } else if (!initDataUnsafe) {
+                        debugInfo.innerHTML += `<span style="color: red;">initDataUnsafe отсутствует</span><br>`;
+                    }
+                    
+                    showError('Не удалось получить параметры запуска. Попробуйте открыть приложение из Telegram.');
+                }
+            } catch (error) {
+                console.error('Ошибка при инициализации:', error);
+                debugInfo.innerHTML += `<span style="color: red;">Ошибка: ${error.message}</span><br>`;
+                showError('Не удалось инициализировать приложение');
+            }
+            
+            // Обработчики событий
+            document.getElementById('back-btn').addEventListener('click', function() {
+                if (tg) {
+                    tg.close();
+                } else {
+                    alert('Telegram WebApp недоступен. Закройте вкладку браузера.');
+                }
+            });
+            
+            document.getElementById('confirm-btn').addEventListener('click', function() {
+                confirmSelection();
+            });
+            
+            // Обработчики для отладочных кнопок
+            document.getElementById('test-data-btn').addEventListener('click', function() {
+                loadTestData();
+            });
+            
+            document.getElementById('check-tg-btn').addEventListener('click', function() {
+                checkTelegramWebApp();
+            });
+            
+            // Обработчик для кнопки отправки тестовых данных
+            document.getElementById('send-test-data-btn').addEventListener('click', function() {
+                sendTestData();
+            });
+            
+            // Обработчик для кнопки переключения отладочной информации
+            document.getElementById('toggle-debug-btn').addEventListener('click', function() {
+                const debugInfo = document.getElementById('debug-info');
+                const isVisible = debugInfo.style.display !== 'none';
+                debugInfo.style.display = isVisible ? 'none' : 'block';
+                this.textContent = isVisible ? 'Показать отладочную информацию' : 'Скрыть отладочную информацию';
+            });
+        }
+        
+        // Функция для проверки Telegram WebApp
+        function checkTelegramWebApp() {
+            const info = {
+                isTelegramWebApp,
+                window_Telegram: !!window.Telegram,
+                window_Telegram_WebApp: window.Telegram ? !!window.Telegram.WebApp : false
+            };
+            
+            if (tg) {
+                info.tg_methods = {
+                    expand: typeof tg.expand === 'function',
+                    close: typeof tg.close === 'function',
+                    sendData: typeof tg.sendData === 'function'
+                };
+                
+                info.tg_properties = {
+                    initData: !!tg.initData,
+                    initDataUnsafe: !!tg.initDataUnsafe
+                };
+            }
+            
+            alert(JSON.stringify(info, null, 2));
+        }
+        
+        // Функция для отправки тестовых данных
+        function sendTestData() {
+            if (!tg || typeof tg.sendData !== 'function') {
+                alert('Telegram WebApp не инициализирован или метод sendData недоступен');
+                return;
+            }
+            
+            const testData = JSON.stringify({
+                messageId: 12345,
+                selectedItems: {"0": 1, "1": 2}
+            });
+            
+            debugInfo.innerHTML += `Отправка тестовых данных: ${testData}<br>`;
+            
+            try {
+                tg.sendData(testData);
+                alert('Тестовые данные отправлены!');
+            } catch (e) {
+                debugInfo.innerHTML += `<span style="color: red;">Ошибка при отправке тестовых данных: ${e.message}</span><br>`;
+                alert(`Ошибка при отправке тестовых данных: ${e.message}`);
+            }
+        }
+        
+        // Функция для загрузки тестовых данных
+        function loadTestData() {
+            messageId = 12345; // Тестовый ID сообщения
+            userId = 67890; // Тестовый ID пользователя
+            
+            // Тестовые данные
+            receiptData = {
+                items: [
+                    { id: 0, description: "Кофе латте", quantity_from_openai: 2, unit_price_from_openai: 150.00, total_amount_from_openai: 300.00 },
+                    { id: 1, description: "Круассан с миндалем", quantity_from_openai: 1, unit_price_from_openai: 180.00, total_amount_from_openai: 180.00 },
+                    { id: 2, description: "Салат Цезарь", quantity_from_openai: 3, unit_price_from_openai: 350.00, total_amount_from_openai: 1050.00 }
+                ],
+                user_selections: {},
+                service_charge_percent: 10.0,
+                total_check_amount: 1530.00,
+                total_discount_percent: 5.0,
+                total_discount_amount: 76.50,
+                actual_discount_percent: 5.0
+            };
+            
+            // Инициализируем данные
+            items = receiptData.items;
+            userCounts = {};
+            
+            items.forEach((item, index) => {
+                userCounts[index] = 0;
+            });
+            
+            // Отображаем информацию о чеке
+            updateReceiptInfo();
+            
+            // Отображаем товары
+            renderItems();
+            updateTotal();
+            
+            debugInfo.innerHTML += `<span style="color: green;">Загружены тестовые данные</span><br>`;
+        }
+        
+        // Функция для запроса данных чека с сервера
+        async function fetchReceiptData(messageId) {
+            try {
+                debugInfo.innerHTML += `Запрос данных для message_id: ${messageId}<br>`;
+                
+                const response = await fetch(`${API_BASE_URL}/api/receipt/${messageId}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Ошибка HTTP: ${response.status}`);
+                }
+                
+                receiptData = await response.json();
+                debugInfo.innerHTML += `Получены данные: ${JSON.stringify(receiptData).substring(0, 100)}...<br>`;
+                
+                // Получаем данные о товарах
+                items = receiptData.items || [];
+                
+                // Логируем данные о товарах для отладки
+                console.log('Полученные данные о товарах:', items);
+                debugInfo.innerHTML += `Количество товаров: ${items.length}<br>`;
+                
+                // Проверяем наличие цен в товарах
+                items.forEach((item, idx) => {
+                    debugInfo.innerHTML += `Товар ${idx}: ${item.description}, цена: ${item.unit_price_from_openai}, общая сумма: ${item.total_amount_from_openai}<br>`;
+                });
+                
+                // Получаем данные о выборе пользователя (если есть)
+                const userSelections = receiptData.user_selections || {};
+                const userSelection = userSelections[userId] || {};
+                
+                // Инициализируем счетчики
+                items.forEach((item, index) => {
+                    userCounts[index] = userSelection[index] || 0;
+                });
+                
+                // Отображаем информацию о чеке
+                updateReceiptInfo();
+                
+                // Отображаем товары
+                renderItems();
+                updateTotal();
+            } catch (error) {
+                console.error('Ошибка при получении данных:', error);
+                debugInfo.innerHTML += `<span style="color: red;">Ошибка при получении данных: ${error.message}</span><br>`;
+                showError('Не удалось загрузить данные чека');
+            }
+        }
+        
+        // Функция для обновления информации о чеке
+        function updateReceiptInfo() {
+            const receiptInfoElement = document.getElementById('receipt-info');
+            
+            if (!receiptData) {
+                receiptInfoElement.innerHTML = '<p>Нет данных о чеке</p>';
+                return;
+            }
+            
+            let html = '<h2>Информация о чеке</h2>';
+            
+            // Добавляем информацию о скидке
+            if (receiptData.actual_discount_percent && receiptData.actual_discount_percent > 0) {
+                html += `<p class="discount">🎉 Скидка: ${receiptData.actual_discount_percent}%</p>`;
+            }
+            
+            // Добавляем информацию о сервисном сборе
+            if (receiptData.service_charge_percent && receiptData.service_charge_percent > 0) {
+                html += `<p class="service-charge">💰 Сервисный сбор: ${receiptData.service_charge_percent}%</p>`;
+            }
+            
+            // Добавляем информацию об итоговой сумме
+            if (receiptData.total_check_amount) {
+                html += `<p class="total">Итого по чеку: ${receiptData.total_check_amount.toFixed(2)}</p>`;
+            }
+            
+            receiptInfoElement.innerHTML = html;
+        }
+        
+        // Функция для отображения товаров
+        function renderItems() {
+            const container = document.getElementById('items-container');
+            container.innerHTML = '';
+            
+            if (items.length === 0) {
+                container.innerHTML = '<div class="error">Нет данных для отображения</div>';
+                return;
+            }
+            
+            items.forEach((item, index) => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'item';
+                
+                // Определяем, является ли товар весовым
+                const isWeightItem = isWeightedItem(item);
+                
+                // Получаем правильную цену для отображения
+                let displayPrice = '0.00';
+                let unitPrice = '0.00';
+                
+                if (isWeightItem && item.total_amount_from_openai) {
+                    displayPrice = parseFloat(item.total_amount_from_openai).toFixed(2);
+                    unitPrice = displayPrice;
+                } else if (item.unit_price_from_openai) {
+                    unitPrice = parseFloat(item.unit_price_from_openai).toFixed(2);
+                    displayPrice = unitPrice;
+                } else if (item.total_amount_from_openai && item.quantity_from_openai > 0) {
+                    displayPrice = parseFloat(item.total_amount_from_openai).toFixed(2);
+                    unitPrice = (parseFloat(item.total_amount_from_openai) / item.quantity_from_openai).toFixed(2);
+                }
+                
+                const quantity = item.quantity_from_openai || 1;
+                
+                itemElement.innerHTML = `
+                    <div class="item-info">
+                        <div class="item-name">${item.description || 'Без названия'}</div>
+                        <div class="item-price">${unitPrice} × ${quantity} шт. = ${displayPrice}</div>
+                    </div>
+                    <div class="counter">
+                        <button class="minus-btn" data-id="${index}">-</button>
+                        <span class="count" data-id="${index}">${userCounts[index] || 0}/${quantity}</span>
+                        <button class="plus-btn" data-id="${index}">+</button>
+                    </div>
+                `;
+                
+                container.appendChild(itemElement);
+            });
+            
+            // Добавляем обработчики для кнопок
+            document.querySelectorAll('.minus-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = parseInt(this.getAttribute('data-id'));
+                    if (userCounts[id] > 0) {
+                        userCounts[id]--;
+                        updateItemCount(id);
+                        updateTotal();
+                    }
+                });
+            });
+            
+            document.querySelectorAll('.plus-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const id = parseInt(this.getAttribute('data-id'));
+                    const item = items[id];
+                    const quantity = item.quantity_from_openai || 1;
+                    
+                    if (userCounts[id] < quantity) {
+                        userCounts[id]++;
+                        updateItemCount(id);
+                        updateTotal();
+                    }
+                });
+            });
+        }
+        
+        // Функция для обновления счетчика товара
+        function updateItemCount(id) {
+            const countElement = document.querySelector(`.count[data-id="${id}"]`);
+            const item = items[id];
+            const quantity = item.quantity_from_openai || 1;
+            
+            countElement.textContent = `${userCounts[id]}/${quantity}`;
+        }
+        
+        // Функция для обновления общей суммы
+        function updateTotal() {
+            let subtotal = 0;
+            
+            // Считаем сумму выбранных товаров
+            items.forEach((item, index) => {
+                const count = userCounts[index] || 0;
+                if (count > 0) {
+                    // Проверяем, является ли товар весовым или обычным
+                    const isWeightItem = isWeightedItem(item);
+                    
+                    if (isWeightItem && item.total_amount_from_openai) {
+                        // Для весового товара берем полную стоимость
+                        subtotal += parseFloat(item.total_amount_from_openai) * count;
+                    } else if (item.unit_price_from_openai) {
+                        // Для обычного товара умножаем цену на количество
+                        subtotal += parseFloat(item.unit_price_from_openai) * count;
+                    } else if (item.total_amount_from_openai && item.quantity_from_openai > 0) {
+                        // Если есть только общая сумма и количество, рассчитываем цену за единицу
+                        const unitPrice = parseFloat(item.total_amount_from_openai) / item.quantity_from_openai;
+                        subtotal += unitPrice * count;
+                    }
+                }
+            });
+            
+            // Записываем детальную информацию для отладки
+            debugInfo.innerHTML += `Базовая сумма: ${subtotal.toFixed(2)}<br>`;
+            
+            // Применяем скидку, если есть
+            let totalAfterDiscount = subtotal;
+            let discountAmount = 0;
+            if (receiptData && receiptData.actual_discount_percent && receiptData.actual_discount_percent > 0) {
+                discountAmount = subtotal * (receiptData.actual_discount_percent / 100);
+                totalAfterDiscount = subtotal - discountAmount;
+                debugInfo.innerHTML += `Скидка (${receiptData.actual_discount_percent}%): -${discountAmount.toFixed(2)}<br>`;
+            }
+            
+            // Применяем сервисный сбор, если есть
+            let finalTotal = totalAfterDiscount;
+            let serviceChargeAmount = 0;
+            if (receiptData && receiptData.service_charge_percent && receiptData.service_charge_percent > 0) {
+                serviceChargeAmount = totalAfterDiscount * (receiptData.service_charge_percent / 100);
+                finalTotal = totalAfterDiscount + serviceChargeAmount;
+                debugInfo.innerHTML += `Сервисный сбор (${receiptData.service_charge_percent}%): +${serviceChargeAmount.toFixed(2)}<br>`;
+            }
+            
+            debugInfo.innerHTML += `Итоговая сумма: ${finalTotal.toFixed(2)}<br>`;
+            
+            // Обновляем отображение итоговой суммы с детализацией
+            document.getElementById('total').innerHTML = `
+                Итого: ${finalTotal.toFixed(2)}
+                <div style="font-size: 12px; color: #666; font-weight: normal;">
+                    ${subtotal !== finalTotal ? `Сумма: ${subtotal.toFixed(2)}` : ''}
+                    ${discountAmount > 0 ? `<br>Скидка: -${discountAmount.toFixed(2)}` : ''}
+                    ${serviceChargeAmount > 0 ? `<br>Обслуживание: +${serviceChargeAmount.toFixed(2)}` : ''}
+                </div>
+            `;
+        }
+        
+        // Функция для определения, является ли товар весовым
+        function isWeightedItem(item) {
+            const openai_quantity = item.quantity_from_openai || 1;
+            const total_amount_openai = item.total_amount_from_openai;
+            const unit_price_openai = item.unit_price_from_openai;
+            
+            if (openai_quantity == 1 && total_amount_openai && unit_price_openai) {
+                const priceDiff = Math.abs(parseFloat(total_amount_openai) - parseFloat(unit_price_openai));
+                return priceDiff > 0.01;
+            }
+            return false;
+        }
+        
+        // Функция для подтверждения выбора
+        async function confirmSelection() {
+            const selectedItems = {};
+            
+            items.forEach((item, index) => {
+                if (userCounts[index] > 0) {
+                    selectedItems[index] = userCounts[index];
+                }
+            });
+            
+            // Если ничего не выбрано
+            if (Object.keys(selectedItems).length === 0) {
+                alert('Выберите хотя бы один товар');
+                return;
+            }
+            
+            try {
+                debugInfo.innerHTML += `Отправка выбора: ${JSON.stringify(selectedItems)}<br>`;
+                
+                // Сохраняем выбор на сервере
+                const response = await fetch(`${API_BASE_URL}/api/selection/${messageId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        selected_items: selectedItems
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Ошибка HTTP: ${response.status}`);
+                }
+                
+                const responseData = await response.json();
+                debugInfo.innerHTML += `Выбор сохранен на сервере: ${JSON.stringify(responseData)}<br>`;
+                
+                // Отправляем данные обратно в Telegram
+                if (tg) {
+                    const dataToSend = JSON.stringify({
+                        messageId: messageId,
+                        selectedItems: selectedItems
+                    });
+                    
+                    debugInfo.innerHTML += `Отправка данных в Telegram: ${dataToSend}<br>`;
+                    console.log('Отправляемые данные в Telegram:', dataToSend);
+                    
+                    // Проверяем доступность метода sendData
+                    if (typeof tg.sendData !== 'function') {
+                        debugInfo.innerHTML += `<span style="color: red;">Ошибка: метод tg.sendData не является функцией</span><br>`;
+                        alert('Ошибка: метод tg.sendData недоступен. Возможно, WebApp не инициализирован правильно.');
+                        return;
+                    }
+                    
+                    // Отправляем данные и показываем сообщение
+                    try {
+                        // Устанавливаем текст кнопки
+                        if (tg.MainButton) {
+                            tg.MainButton.setText('Отправка...');
+                            tg.MainButton.show();
+                        }
+                        
+                        // Создаем видимый div с сообщением
+                        const messageDiv = document.createElement('div');
+                        messageDiv.style.position = 'fixed';
+                        messageDiv.style.top = '50%';
+                        messageDiv.style.left = '50%';
+                        messageDiv.style.transform = 'translate(-50%, -50%)';
+                        messageDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                        messageDiv.style.color = 'white';
+                        messageDiv.style.padding = '20px';
+                        messageDiv.style.borderRadius = '10px';
+                        messageDiv.style.zIndex = '1000';
+                        messageDiv.style.textAlign = 'center';
+                        messageDiv.innerHTML = 'Отправка выбора в бот. Пожалуйста, не закрывайте окно.';
+                        document.body.appendChild(messageDiv);
+                        
+                        // Отправляем данные в Telegram
+                        debugInfo.innerHTML += `Вызываем tg.sendData с данными<br>`;
+                        tg.sendData(dataToSend);
+                        debugInfo.innerHTML += `Данные отправлены в Telegram<br>`;
+                        
+                        // Обновляем сообщение пользователю
+                        messageDiv.innerHTML = 'Ваш выбор успешно отправлен! Проверьте сообщение в чате с ботом.';
+                        
+                        // Закрываем WebApp через 3 секунды
+                        setTimeout(() => {
+                            if (tg.MainButton) {
+                                tg.MainButton.hide();
+                            }
+                            
+                            document.body.removeChild(messageDiv);
+                            tg.close();
+                        }, 3000);
+                    } catch (e) {
+                        debugInfo.innerHTML += `<span style="color: red;">Ошибка при отправке данных в Telegram: ${e.message}</span><br>`;
+                        console.error('Ошибка при отправке данных в Telegram:', e);
+                        alert(`Ошибка при отправке данных: ${e.message}`);
+                    }
+                } else {
+                    alert('Выбор сохранен, но Telegram WebApp недоступен. Данные: ' + JSON.stringify(selectedItems));
+                }
+            } catch (error) {
+                console.error('Ошибка при сохранении выбора:', error);
+                debugInfo.innerHTML += `<span style="color: red;">Ошибка при сохранении выбора: ${error.message}</span><br>`;
+                alert('Произошла ошибка при сохранении выбора');
+            }
+        }
+        
+        // Функция для отображения ошибки
+        function showError(message) {
+            const container = document.getElementById('items-container');
+            container.innerHTML = `<div class="error">${message}</div>`;
+        }
+        
+        // Запускаем приложение при загрузке страницы
+        document.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html> 

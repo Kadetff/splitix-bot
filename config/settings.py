@@ -1,8 +1,12 @@
 import os
+import logging
 from dotenv import load_dotenv
 
 # Загружаем переменные окружения
 load_dotenv()
+
+# Настройка логирования
+logger = logging.getLogger(__name__)
 
 # Telegram Bot settings
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -18,5 +22,14 @@ if not OPENAI_API_KEY:
 OPENAI_MODEL = "gpt-4.1-mini"
 OPENAI_MAX_TOKENS = 1500
 
+# WebApp settings
+WEBAPP_URL = os.getenv("WEBAPP_URL")
+if WEBAPP_URL:
+    # Очищаем URL от кавычек, если они есть
+    WEBAPP_URL = WEBAPP_URL.strip('"\'')
+    logger.info(f"Загружен WEBAPP_URL: {WEBAPP_URL}")
+else:
+    logger.warning("WEBAPP_URL не найден в .env файле. Веб-приложение будет недоступно.")
+
 # Logging settings
-LOG_LEVEL = "INFO" 
+LOG_LEVEL = "DEBUG" 

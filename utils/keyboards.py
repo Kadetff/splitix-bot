@@ -1,8 +1,12 @@
 from decimal import Decimal
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from config.settings import WEBAPP_URL
+import logging
 
-def create_items_keyboard_with_counters(items: list[dict], user_specific_counts: dict[int, int], view_mode: str = "default") -> InlineKeyboardMarkup:
+logger = logging.getLogger(__name__)
+
+def create_items_keyboard_with_counters(items: list[dict], user_specific_counts: dict[int, int], view_mode: str = "default", message_id: int = None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for idx, item in enumerate(items):
         description = item.get("description", "N/A")
@@ -44,6 +48,22 @@ def create_items_keyboard_with_counters(items: list[dict], user_specific_counts:
     
     if view_mode == "default":
         builder.row(InlineKeyboardButton(text="✅ Подтвердить выбор", callback_data="confirm_selection"))
+        
+        # Добавляем кнопку для запуска веб-приложения, если указан message_id
+        if message_id is not None and WEBAPP_URL:
+            # Очищаем URL от кавычек, если они есть
+            clean_url = WEBAPP_URL.strip('"\'')
+            
+            # Используем параметр в URL вместо query параметра
+            webapp_url = f"{clean_url}/{message_id}"
+            
+            logger.info(f"Создаем кнопку WebApp с URL: {webapp_url}")
+            
+            builder.row(InlineKeyboardButton(
+                text="🌐 Открыть в веб-интерфейсе", 
+                web_app=WebAppInfo(url=webapp_url)
+            ))
+        
         builder.row(InlineKeyboardButton(text="📊 Мой текущий выбор", callback_data="show_my_summary"))
         builder.row(InlineKeyboardButton(text="📈 Общий итог по чеку", callback_data="show_total_summary"))
     elif view_mode == "total_summary_display":
