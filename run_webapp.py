@@ -1,10 +1,9 @@
 import os
 import logging
-import threading
-import asyncio
+import subprocess
+import sys
 from webapp.server import app
 from config.settings import LOG_LEVEL
-from main import main as run_bot
 
 # Настройка логирования
 logging.basicConfig(level=LOG_LEVEL)
@@ -19,18 +18,25 @@ def run_flask_app():
     # Запускаем веб-сервер
     app.run(host='0.0.0.0', port=port)
 
-def run_telegram_bot():
-    logger.info("Запуск Telegram бота в отдельном потоке")
-    asyncio.run(run_bot())
-
 def main():
-    # Создаем и запускаем поток для Telegram бота
-    bot_thread = threading.Thread(target=run_telegram_bot)
-    bot_thread.daemon = True
-    bot_thread.start()
-    
-    # Запускаем Flask приложение в основном потоке
-    run_flask_app()
+    # На Heroku запускаем только веб-сервер, бот уже запущен в отдельном dyno
+    # Проверяем, не запущены ли мы на Heroku
+    if os.environ.get('DYNO'):
+        logger.info("Запуск на Heroku. Запускаем только веб-сервер.")
+        run_flask_app()
+    else:
+        # Локальный запуск - запускаем и бота, и веб-сервер
+        logger.info("Локальный запуск. Запускаем бота и веб-сервер.")
+        # Запускаем бота как отдельный процесс
+        bot_process = subprocess.Popen([sys.executable, 'main.py'], 
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT,
+                                        universal_newlines=True)
+        
+        logger.info(f"Telegram бот запущен с PID: {bot_process.pid}")
+        
+        # Запускаем Flask приложение
+        run_flask_app()
 
 if __name__ == "__main__":
     main() 
