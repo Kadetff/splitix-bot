@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 
 # Получаем абсолютный путь к директории webapp
@@ -19,8 +19,22 @@ receipt_data = {}
 
 @app.route('/')
 def index():
+    """Обработка запроса главной страницы"""
     logger.info(f"Запрос главной страницы, webapp_dir: {webapp_dir}")
-    return send_from_directory(webapp_dir, 'index.html')
+    index_path = os.path.join(webapp_dir, 'index.html')
+    logger.info(f"Полный путь к index.html: {index_path}")
+    
+    # Проверяем наличие файла
+    if os.path.exists(index_path):
+        logger.info(f"Файл index.html найден по пути: {index_path}")
+        try:
+            return send_file(index_path)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке файла: {e}")
+            return f"Ошибка при отправке файла: {e}", 500
+    else:
+        logger.error(f"Файл index.html не найден по пути: {index_path}")
+        return "Файл не найден", 404
 
 @app.route('/health')
 def health_check():
@@ -32,7 +46,20 @@ def health_check():
 def index_with_message_id(message_id):
     """Обработка запроса с message_id в URL"""
     logger.info(f"Запрос страницы с message_id в URL: {message_id}")
-    return send_from_directory(webapp_dir, 'index.html')
+    index_path = os.path.join(webapp_dir, 'index.html')
+    logger.info(f"Полный путь к index.html: {index_path}")
+    
+    # Проверяем наличие файла
+    if os.path.exists(index_path):
+        logger.info(f"Файл index.html найден по пути: {index_path}")
+        try:
+            return send_file(index_path)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке файла: {e}")
+            return f"Ошибка при отправке файла: {e}", 500
+    else:
+        logger.error(f"Файл index.html не найден по пути: {index_path}")
+        return "Файл не найден", 404
 
 @app.route('/api/receipt/<int:message_id>', methods=['GET'])
 def get_receipt_data(message_id):
