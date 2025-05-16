@@ -31,8 +31,23 @@ async def save_receipt_data_to_api(message_id: int, data: Dict[str, Any]) -> boo
     try:
         # Очищаем URL от кавычек, если они есть
         clean_url = WEBAPP_URL.strip('"\'')
-        api_url = f"{clean_url}/api/receipt/{message_id}"
         
+        # Сначала проверяем доступность API
+        health_url = f"{clean_url}/health"
+        logger.info(f"Проверка доступности API: {health_url}")
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(health_url, timeout=5) as health_response:
+                    if health_response.status != 200:
+                        logger.error(f"API недоступен, код ответа: {health_response.status}")
+                        return False
+                    logger.info("API доступен, продолжаем с сохранением данных")
+            except Exception as health_err:
+                logger.error(f"Не удалось проверить доступность API: {health_err}")
+                return False
+        
+        api_url = f"{clean_url}/api/receipt/{message_id}"
         logger.info(f"Сохранение данных чека в API: {api_url}")
         
         # Преобразуем Decimal в строки для корректной сериализации в JSON
@@ -162,23 +177,24 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         # Создаем клавиатуру выбора
         keyboard = create_items_keyboard_with_counters(items, empty_user_counts, message_id=message_id)
         
-        logger.info("Отправляем сообщение с результатами и клавиатурой")
+        # Формируем текст с учетом статуса сохранения в API
+        webapp_info = ""
+        if api_saved:
+            logger.info(f"Данные успешно сохранены в API для message_id: {message_id}")
+            webapp_info = "\n\n<i>💻 Доступно в веб-приложении</i>"
+        else:
+            logger.warning(f"Не удалось сохранить данные в API для message_id: {message_id}")
+            webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно, используйте кнопки ниже</i>"
+        
         # Отправляем сообщение с информацией о чеке и клавиатурой
         result_message = await processing_message.edit_text(
-            response_msg_text,
-            reply_markup=keyboard
+            response_msg_text + webapp_info,
+            reply_markup=keyboard,
+            parse_mode="HTML"
         )
         
         # Сохраняем данные в глобальный словарь message_states
         message_states[result_message.message_id] = receipt_data
-        
-        # Добавляем информацию о статусе сохранения в API
-        if api_saved:
-            logger.info(f"Данные успешно сохранены в API для message_id: {result_message.message_id}")
-        else:
-            logger.warning(f"Не удалось сохранить данные в API для message_id: {result_message.message_id}")
-        
-        logger.info(f"Состояние сохранено для message_id: {result_message.message_id}")
         
         # Устанавливаем состояние ожидания выбора товаров
         await state.set_state(ReceiptStates.waiting_for_items_selection)

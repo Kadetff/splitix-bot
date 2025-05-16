@@ -22,6 +22,12 @@ def index():
     logger.info(f"Запрос главной страницы, webapp_dir: {webapp_dir}")
     return send_from_directory(webapp_dir, 'index.html')
 
+@app.route('/health')
+def health_check():
+    """Простой эндпоинт для проверки доступности API"""
+    logger.info("Запрос проверки состояния API")
+    return jsonify({"status": "ok", "message": "API is running"})
+
 @app.route('/<int:message_id>')
 def index_with_message_id(message_id):
     """Обработка запроса с message_id в URL"""
