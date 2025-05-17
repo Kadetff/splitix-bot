@@ -6,7 +6,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from config.settings import TELEGRAM_BOT_TOKEN, LOG_LEVEL
-from handlers import photo, callbacks, commands, webapp
+from handlers import photo, callbacks, commands, webapp, inline
 
 # Настраиваем логирование
 logging.basicConfig(
@@ -41,6 +41,7 @@ async def main():
     dp.include_router(photo.router)
     dp.include_router(callbacks.router)
     dp.include_router(webapp.router)
+    dp.include_router(inline.router)
     
     await dp.start_polling(bot)
 
