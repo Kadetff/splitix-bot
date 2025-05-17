@@ -24,11 +24,10 @@ OPENAI_MAX_TOKENS = 1500
 
 # WebApp settings
 WEBAPP_URL = os.getenv("WEBAPP_URL")
+
 if not WEBAPP_URL:
-    # Для локальной разработки
-    PORT = os.getenv("PORT", "8080")
-    WEBAPP_URL = f"http://localhost:{PORT}"
-    logger.warning(f"WEBAPP_URL не найден, используем локальный URL: {WEBAPP_URL}")
+    logger.warning("WEBAPP_URL не указан в .env файле. WebApp функциональность будет недоступна.")
+    WEBAPP_URL = None
 else:
     # Очищаем URL от кавычек, если они есть
     WEBAPP_URL = WEBAPP_URL.strip('"\'')

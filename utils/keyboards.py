@@ -50,19 +50,26 @@ def create_items_keyboard_with_counters(items: list[dict], user_specific_counts:
         builder.row(InlineKeyboardButton(text="✅ Подтвердить выбор", callback_data="confirm_selection"))
         
         # Добавляем кнопку для запуска веб-приложения, если указан message_id
-        if message_id is not None and WEBAPP_URL:
+        if message_id is not None and WEBAPP_URL and not ("http://localhost" in WEBAPP_URL or "http://127.0.0.1" in WEBAPP_URL):
             # Очищаем URL от кавычек, если они есть
             clean_url = WEBAPP_URL.strip('"\'')
             
-            # Используем параметр в URL вместо query параметра
-            webapp_url = f"{clean_url}/{message_id}"
-            
-            logger.info(f"Создаем кнопку WebApp с URL: {webapp_url}")
-            
-            builder.row(InlineKeyboardButton(
-                text="🌐 Открыть в веб-интерфейсе", 
-                web_app=WebAppInfo(url=webapp_url)
-            ))
+            # Дополнительная проверка, что message_id валидный
+            if isinstance(message_id, int) and message_id > 0:
+                # Используем параметр в URL вместо query параметра
+                webapp_url = f"{clean_url}/{message_id}"
+                
+                logger.info(f"Создаем кнопку WebApp с URL: {webapp_url}")
+                
+                try:
+                    builder.row(InlineKeyboardButton(
+                        text="🌐 Открыть в веб-интерфейсе", 
+                        web_app=WebAppInfo(url=webapp_url)
+                    ))
+                except Exception as e:
+                    logger.error(f"Ошибка при создании кнопки WebApp: {e}")
+            else:
+                logger.warning(f"Невалидный message_id: {message_id}, тип: {type(message_id)}. WebApp кнопка не будет добавлена.")
         
         builder.row(InlineKeyboardButton(text="📊 Мой текущий выбор", callback_data="show_my_summary"))
         builder.row(InlineKeyboardButton(text="📈 Общий итог по чеку", callback_data="show_total_summary"))

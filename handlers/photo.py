@@ -11,6 +11,7 @@ from services.openai_service import process_receipt_with_openai
 from utils.keyboards import create_items_keyboard_with_counters
 from typing import Dict, Any
 from config.settings import WEBAPP_URL
+import asyncio
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -28,6 +29,11 @@ async def save_receipt_data_to_api(message_id: int, data: Dict[str, Any]) -> boo
         logger.warning("WEBAPP_URL не настроен, данные не будут сохранены в API")
         return False
     
+    # Проверяем, что URL не содержит http://localhost
+    if "http://localhost" in WEBAPP_URL or "http://127.0.0.1" in WEBAPP_URL:
+        logger.warning("Использование localhost URL не поддерживается Telegram. Данные не будут сохранены в API.")
+        return False
+    
     try:
         # Очищаем URL от кавычек, если они есть
         clean_url = WEBAPP_URL.strip('"\'')
@@ -36,17 +42,41 @@ async def save_receipt_data_to_api(message_id: int, data: Dict[str, Any]) -> boo
         health_url = f"{clean_url}/health"
         logger.info(f"Проверка доступности API: {health_url}")
         
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(health_url, timeout=5) as health_response:
-                    if health_response.status != 200:
-                        logger.error(f"API недоступен, код ответа: {health_response.status}")
-                        return False
-                    logger.info("API доступен, продолжаем с сохранением данных")
-            except Exception as health_err:
-                logger.error(f"Не удалось проверить доступность API: {health_err}")
-                return False
+        # Устанавливаем таймаут для проверки
+        timeout = aiohttp.ClientTimeout(total=5.0)
         
+        # Попытка связаться с API
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                try:
+                    async with session.get(health_url) as health_response:
+                        if health_response.status != 200:
+                            logger.error(f"API недоступен, код ответа: {health_response.status}")
+                            if health_response.status == 503:
+                                logger.warning("Сервер API вернул 503 Service Unavailable. Возможно, сервер перегружен или не запущен.")
+                            return False
+                        
+                        # Проверяем ответ
+                        try:
+                            health_data = await health_response.json()
+                            if health_data.get("status") != "ok":
+                                logger.error(f"API вернул некорректный статус: {health_data}")
+                                return False
+                            logger.info("API доступен, продолжаем с сохранением данных")
+                        except Exception as json_err:
+                            logger.error(f"Не удалось прочитать JSON ответа: {json_err}")
+                            return False
+                except aiohttp.ClientConnectorError as conn_err:
+                    logger.error(f"Не удалось подключиться к API: {conn_err}")
+                    return False
+                except aiohttp.ClientError as client_err:
+                    logger.error(f"Ошибка HTTP клиента: {client_err}")
+                    return False
+        except asyncio.TimeoutError:
+            logger.error(f"Таймаут при проверке доступности API: {health_url}")
+            return False
+        
+        # Если прошли проверку доступности, сохраняем данные
         api_url = f"{clean_url}/api/receipt/{message_id}"
         logger.info(f"Сохранение данных чека в API: {api_url}")
         
@@ -70,14 +100,31 @@ async def save_receipt_data_to_api(message_id: int, data: Dict[str, Any]) -> boo
         
         logger.debug(f"Сериализуемые данные для API: {json.dumps(serializable_data)[:500]}...")
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(api_url, json=serializable_data) as response:
-                if response.status == 200:
-                    logger.info(f"Данные чека успешно сохранены в API для message_id: {message_id}")
-                    return True
-                else:
-                    logger.error(f"Ошибка при сохранении данных в API: {response.status}, {await response.text()}")
+        # Попытка отправки данных на API
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                try:
+                    async with session.post(api_url, json=serializable_data) as response:
+                        if response.status == 200:
+                            logger.info(f"Данные чека успешно сохранены в API для message_id: {message_id}")
+                            return True
+                        else:
+                            error_text = await response.text()
+                            logger.error(f"Ошибка при сохранении данных в API: {response.status}, {error_text}")
+                            return False
+                except aiohttp.ClientConnectorError as conn_err:
+                    logger.error(f"Не удалось подключиться к API при отправке данных: {conn_err}")
                     return False
+                except aiohttp.ClientError as client_err:
+                    logger.error(f"Ошибка HTTP клиента при отправке данных: {client_err}")
+                    return False
+        except asyncio.TimeoutError:
+            logger.error(f"Таймаут при отправке данных в API: {api_url}")
+            return False
+        except Exception as e:
+            logger.error(f"Общая ошибка при сохранении данных в API: {e}", exc_info=True)
+            return False
+            
     except Exception as e:
         logger.error(f"Ошибка при сохранении данных в API: {e}", exc_info=True)
         return False
@@ -174,17 +221,25 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         message_id = processing_message.message_id
         api_saved = await save_receipt_data_to_api(message_id, receipt_data)
         
-        # Создаем клавиатуру выбора
-        keyboard = create_items_keyboard_with_counters(items, empty_user_counts, message_id=message_id)
+        # Проверяем WEBAPP_URL перед созданием клавиатуры
+        webapp_enabled = False
+        if WEBAPP_URL and not ("http://localhost" in WEBAPP_URL or "http://127.0.0.1" in WEBAPP_URL):
+            # Пробуем сохранить данные в API и проверяем доступность
+            api_saved = await save_receipt_data_to_api(message_id, receipt_data)
+            # Только если API доступен, включаем WebApp
+            webapp_enabled = api_saved
+        else:
+            api_saved = False
         
-        # Формируем текст с учетом статуса сохранения в API
-        webapp_info = ""
-        if api_saved:
-            logger.info(f"Данные успешно сохранены в API для message_id: {message_id}")
+        # Создаем клавиатуру в зависимости от доступности WebApp
+        if webapp_enabled:
+            logger.info("Создаем клавиатуру с WebApp кнопкой")
+            keyboard = create_items_keyboard_with_counters(items, empty_user_counts, message_id=message_id)
             webapp_info = "\n\n<i>💻 Доступно в веб-приложении</i>"
         else:
-            logger.warning(f"Не удалось сохранить данные в API для message_id: {message_id}")
-            webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно, используйте кнопки ниже</i>"
+            logger.info("Создаем клавиатуру без WebApp кнопки")
+            keyboard = create_items_keyboard_with_counters(items, empty_user_counts)
+            webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно, используйте кнопки ниже</i>" if WEBAPP_URL else ""
         
         # Отправляем сообщение с информацией о чеке и клавиатурой
         result_message = await processing_message.edit_text(
@@ -202,7 +257,19 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         
     except Exception as e:
         logger.error(f"Ошибка при обработке фото: {e}", exc_info=True)
-        await message.answer("❌ Произошла ошибка при обработке чека. Пожалуйста, попробуйте еще раз.")
+        # Проверяем тип ошибки и улучшаем сообщение
+        if "Web App URL" in str(e) and "invalid" in str(e):
+            await message.answer("❌ Ошибка при создании веб-интерфейса. Пожалуйста, обратитесь к администратору бота.")
+        elif "aiogram.exceptions" in str(e.__class__):
+            await message.answer("❌ Ошибка в Telegram API. Пожалуйста, попробуйте еще раз позже.")
+        else:
+            await message.answer("❌ Произошла ошибка при обработке чека. Пожалуйста, попробуйте еще раз.")
+        
+        # Логируем детальную информацию о чате для отладки
+        chat_id = message.chat.id
+        chat_type = message.chat.type
+        logger.error(f"Контекст ошибки: chat_id={chat_id}, chat_type={chat_type}")
+        
         await state.clear()
 
 @router.message(F.photo)
@@ -238,4 +305,8 @@ async def handle_photo(message: Message, state: FSMContext):
             await process_receipt_photo(message, state)
         else:
             logger.info("Игнорируем фото (группа, нет состояния ожидания)")
-            # Игнорируем фото 
+            # В групповых чатах отправляем подсказку вместо игнорирования
+            await message.answer(
+                "Чтобы я обработал фото чека в группе, сначала используйте команду /split\n"
+                "Это нужно, чтобы я не реагировал на все фотографии в группе."
+            ) 
