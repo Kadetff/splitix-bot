@@ -12,6 +12,46 @@ router = Router()
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
+    # Проверяем наличие параметров в команде start
+    command_parts = message.text.split()
+    if len(command_parts) > 1 and command_parts[1].startswith("webapp_"):
+        # Извлекаем message_id из параметра
+        try:
+            receipt_message_id = int(command_parts[1].replace("webapp_", ""))
+            logger.info(f"Получен запрос на открытие WebApp с message_id={receipt_message_id}")
+            
+            # Проверяем, что URL веб-приложения установлен и не локальный
+            if not WEBAPP_URL or "http://localhost" in WEBAPP_URL or "http://127.0.0.1" in WEBAPP_URL:
+                await message.answer(
+                    "⚠️ Веб-приложение временно недоступно.\n\n"
+                    "Пожалуйста, попробуйте позже или используйте основной функционал бота через отправку фото чека."
+                )
+                return
+                
+            # Создаем ReplyKeyboardMarkup с WebApp кнопкой
+            keyboard = ReplyKeyboardMarkup(
+                keyboard=[
+                    [
+                        KeyboardButton(
+                            text="🌐 Открыть мини-приложение SplitCheck", 
+                            web_app=WebAppInfo(url=f"{WEBAPP_URL}/{receipt_message_id}")
+                        )
+                    ]
+                ],
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+            
+            await message.answer(
+                "🌐 Нажмите на кнопку ниже, чтобы открыть мини-приложение SplitCheck с данными распознанного чека:",
+                reply_markup=keyboard
+            )
+            return
+            
+        except (ValueError, Exception) as e:
+            logger.error(f"Ошибка при обработке параметра webapp: {e}", exc_info=True)
+    
+    # Стандартное приветствие, если нет специальных параметров
     await message.answer(
         "👋 Привет! Я бот для разделения чеков.\n\n"
         "📸 Отправь мне фото чека, и я помогу разделить его между участниками.\n\n"
