@@ -6,11 +6,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def create_items_keyboard_with_counters(items: list[dict], user_specific_counts: dict[int, int], view_mode: str = "default", message_id: int = None, chat_type: str = None) -> InlineKeyboardMarkup:
+def create_items_keyboard_with_counters(items: list[dict], user_specific_counts: dict, view_mode: str = "default", message_id: int = None, chat_type: str = None) -> InlineKeyboardMarkup:
+    logger.info(f"Создание клавиатуры с счетчиками. view_mode={view_mode}, message_id={message_id}, user_counts={user_specific_counts}")
+    
     builder = InlineKeyboardBuilder()
     for idx, item in enumerate(items):
         description = item.get("description", "N/A")
-        current_selection_count = user_specific_counts.get(idx, 0) 
+        # Используем строковый индекс для совместимости
+        idx_str = str(idx)
+        current_selection_count = user_specific_counts.get(idx_str, 0) 
         openai_quantity = item.get("quantity_from_openai", 1)
         unit_price_openai = item.get("unit_price_from_openai")
         total_amount_openai = item.get("total_amount_from_openai")

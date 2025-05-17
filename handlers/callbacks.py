@@ -19,6 +19,9 @@ message_states: Dict[int, Dict[str, Any]] = {}
 @router.callback_query(F.data.startswith("increment_item:"), ReceiptStates.waiting_for_items_selection)
 async def handle_item_increment(callback: CallbackQuery, state: FSMContext):
     try:
+        # Логируем действие для отладки
+        logger.info(f"Increment item callback от пользователя {callback.from_user.id}, data={callback.data}")
+        
         # Получаем индекс товара из callback_data
         item_idx = int(callback.data.split(":")[1])
         
@@ -48,23 +51,38 @@ async def handle_item_increment(callback: CallbackQuery, state: FSMContext):
         user_selections = message_data.setdefault("user_selections", {})
         user_counts = user_selections.setdefault(user_id, {})
         
+        logger.info(f"Текущие выборы пользователя {user_id}: {user_counts}")
+        
         # Получаем информацию о товаре и текущем выборе
         item_info = items[item_idx]
         openai_quantity = item_info.get("quantity_from_openai", 1)
-        current_count = user_counts.get(item_idx, 0)
+        current_count = user_counts.get(str(item_idx), 0)  # Используем строковые ключи для совместимости
+        
+        logger.info(f"Текущий счетчик для item_idx={item_idx}: {current_count}, max={openai_quantity}")
         
         # Увеличиваем количество выбранных товаров или сбрасываем при достижении максимума
         if current_count < openai_quantity:
-            user_counts[item_idx] = current_count + 1
-            count_message = f"Ваш счетчик для '{item_info.get('description', 'N/A')[:20]}...' увеличен до {user_counts[item_idx]}"
+            user_counts[str(item_idx)] = current_count + 1
+            count_message = f"Ваш счетчик для '{item_info.get('description', 'N/A')[:20]}...' увеличен до {user_counts[str(item_idx)]}"
         else:
-            user_counts[item_idx] = 0
+            user_counts[str(item_idx)] = 0
             count_message = f"Ваш счетчик для '{item_info.get('description', 'N/A')[:20]}...' сброшен"
         
-        # Обновляем клавиатуру
+        logger.info(f"Обновленные выборы пользователя {user_id}: {user_counts}")
+        
+        # Сохраняем обновленный выбор пользователя в глобальное состояние
+        message_states[message_id]["user_selections"][user_id] = user_counts
+        
+        # Обновляем клавиатуру для ТЕКУЩЕГО пользователя
         try:
-            keyboard = create_items_keyboard_with_counters(items, user_counts, chat_type=callback.message.chat.type)
+            keyboard = create_items_keyboard_with_counters(
+                items, 
+                user_counts, 
+                chat_type=callback.message.chat.type,
+                message_id=message_id
+            )
             await callback.message.edit_reply_markup(reply_markup=keyboard)
+            logger.info(f"Клавиатура успешно обновлена для пользователя {user_id}")
         except Exception as keyboard_error:
             logger.error(f"Ошибка при обновлении клавиатуры: {keyboard_error}", exc_info=True)
             
@@ -73,15 +91,16 @@ async def handle_item_increment(callback: CallbackQuery, state: FSMContext):
                 simple_keyboard = InlineKeyboardBuilder()
                 for idx, item in enumerate(items):
                     description = item.get("description", "N/A")[:25]
-                    current_count = user_counts.get(idx, 0)
-                    openai_quantity = item.get("quantity_from_openai", 1)
+                    item_current_count = user_counts.get(str(idx), 0)
+                    item_openai_quantity = item.get("quantity_from_openai", 1)
                     simple_keyboard.row(InlineKeyboardButton(
-                        text=f"[{current_count}/{openai_quantity}] {description}", 
+                        text=f"[{item_current_count}/{item_openai_quantity}] {description}", 
                         callback_data=f"increment_item:{idx}"
                     ))
                 
                 simple_keyboard.row(InlineKeyboardButton(text="✅ Подтвердить выбор", callback_data="confirm_selection"))
                 await callback.message.edit_reply_markup(reply_markup=simple_keyboard.as_markup())
+                logger.info(f"Простая клавиатура успешно создана для пользователя {user_id}")
             except Exception as simple_error:
                 logger.error(f"Критическая ошибка при создании простой клавиатуры: {simple_error}", exc_info=True)
                 await callback.answer("Ошибка при обновлении интерфейса. Пожалуйста, попробуйте еще раз.", show_alert=True)
@@ -96,6 +115,9 @@ async def handle_item_increment(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "confirm_selection", ReceiptStates.waiting_for_items_selection)
 async def handle_confirm_selection(callback: CallbackQuery, state: FSMContext):
     try:
+        # Логируем действие для отладки
+        logger.info(f"Confirm selection callback от пользователя {callback.from_user.id}")
+        
         # Получаем message_id сообщения с клавиатурой
         message_id = callback.message.message_id
         
@@ -119,6 +141,8 @@ async def handle_confirm_selection(callback: CallbackQuery, state: FSMContext):
         user_selections = message_data.get("user_selections", {})
         user_counts = user_selections.get(user_id, {})
         
+        logger.info(f"Выбор пользователя {user_id} для подтверждения: {user_counts}")
+        
         # Проверяем, есть ли выбранные товары
         if not any(user_counts.values()):
             await callback.answer("❌ Выберите хотя бы один товар")
@@ -136,8 +160,9 @@ async def handle_confirm_selection(callback: CallbackQuery, state: FSMContext):
                 total_check_sum += item["total_amount_from_openai"]
         
         # Формируем список выбранных товаров и считаем сумму
-        for idx, count in user_counts.items():
+        for idx_str, count in user_counts.items():
             if count > 0:
+                idx = int(idx_str)  # Преобразуем строковый индекс в целое число
                 item = items[idx]
                 description = item.get("description", "N/A")
                 
@@ -543,6 +568,9 @@ async def handle_back_to_receipt(callback: CallbackQuery, state: FSMContext):
 async def handle_show_all_results(callback: CallbackQuery):
     """Показывает итоги всех участников"""
     try:
+        # Логируем действие для отладки
+        logger.info(f"Show all results callback от пользователя {callback.from_user.id}")
+        
         # Получаем message_id сообщения с клавиатурой
         message_id = callback.message.message_id
         
@@ -560,21 +588,130 @@ async def handle_show_all_results(callback: CallbackQuery):
             msg_id, message_data = found_data
             user_results = message_data.get("user_results", {})
             
+            logger.info(f"Найдены результаты пользователей: {user_results}")
+            
             if not user_results:
+                logger.warning("В user_results нет данных")
+                # Попробуем использовать user_selections вместо user_results
+                if "user_selections" in message_data and message_data["user_selections"]:
+                    logger.info("Используем user_selections для формирования итогов")
+                    # Формируем сообщение с итогами всех участников на основе user_selections
+                    all_results = "<b>📊 Итоги всех участников:</b>\n\n"
+                    
+                    # Расчет общей суммы всех позиций в чеке для распределения скидки
+                    items = message_data.get("items", [])
+                    service_charge_percent = message_data.get("service_charge_percent")
+                    actual_discount_percent = message_data.get("actual_discount_percent")
+                    total_discount_amount = message_data.get("total_discount_amount")
+                    
+                    total_check_sum = Decimal("0.00")
+                    for item in items:
+                        if item.get("total_amount_from_openai") is not None:
+                            total_check_sum += item["total_amount_from_openai"]
+                    
+                    total_group_sum = Decimal("0.00")
+                    user_selections = message_data.get("user_selections", {})
+                    
+                    for user_id_str, user_counts in user_selections.items():
+                        # Пропускаем пользователей без выбора
+                        if not any(user_counts.values()):
+                            continue
+                            
+                        # Получаем имя пользователя
+                        try:
+                            user_id = int(user_id_str)
+                            user = await callback.bot.get_chat_member(callback.message.chat.id, user_id)
+                            user_name = user.user.username or f"{user.user.first_name}"
+                        except Exception as e:
+                            logger.error(f"Ошибка при получении информации о пользователе: {e}")
+                            user_name = f"User {user_id_str}"
+                        
+                        # Рассчитываем сумму для пользователя
+                        user_sum = Decimal("0.00")
+                        for idx_str, count in user_counts.items():
+                            if count > 0:
+                                idx = int(idx_str)
+                                if idx < len(items):
+                                    item = items[idx]
+                                    
+                                    # Определяем, является ли товар весовым
+                                    is_weight_item = False
+                                    openai_quantity = item.get("quantity_from_openai", 1)
+                                    total_amount_openai = item.get("total_amount_from_openai")
+                                    unit_price_openai = item.get("unit_price_from_openai")
+                                    
+                                    if openai_quantity == 1 and total_amount_openai is not None and unit_price_openai is not None:
+                                        price_diff = abs(total_amount_openai - unit_price_openai)
+                                        is_weight_item = price_diff > Decimal("0.01")
+                                    
+                                    # Расчет стоимости
+                                    if is_weight_item and total_amount_openai is not None:
+                                        item_total = total_amount_openai
+                                    elif unit_price_openai is not None:
+                                        item_total = unit_price_openai * Decimal(count)
+                                    elif total_amount_openai is not None and openai_quantity > 0:
+                                        try:
+                                            unit_price = total_amount_openai / Decimal(str(openai_quantity))
+                                            item_total = unit_price * Decimal(count)
+                                        except Exception:
+                                            item_total = total_amount_openai
+                                    else:
+                                        continue
+                                    
+                                    # Применяем скидки на товар, если есть
+                                    if item.get("discount_percent") is not None:
+                                        discount_amount = (item_total * item["discount_percent"] / Decimal("100")).quantize(Decimal("0.01"))
+                                        item_total -= discount_amount
+                                    elif item.get("discount_amount") is not None:
+                                        if openai_quantity > 0:
+                                            item_discount = (item["discount_amount"] * Decimal(count) / Decimal(str(openai_quantity))).quantize(Decimal("0.01"))
+                                            item_total -= item_discount
+                                    
+                                    user_sum += item_total
+                        
+                        # Применяем сервисный сбор
+                        if service_charge_percent is not None:
+                            service_amount = (user_sum * service_charge_percent / Decimal("100")).quantize(Decimal("0.01"))
+                            user_sum += service_amount
+                        
+                        # Применяем скидку
+                        if actual_discount_percent is not None and actual_discount_percent > 0:
+                            discount_amount = (user_sum * actual_discount_percent / Decimal("100")).quantize(Decimal("0.01"))
+                            user_sum -= discount_amount
+                        elif total_discount_amount is not None and total_check_sum > 0:
+                            user_discount = (total_discount_amount * user_sum / total_check_sum).quantize(Decimal("0.01"))
+                            user_sum -= user_discount
+                        
+                        total_group_sum += user_sum
+                        all_results += f"@{user_name}: {user_sum:.2f}\n"
+                    
+                    if total_group_sum > 0:
+                        # Добавляем общую сумму группы
+                        all_results += f"\n<b>💰 Общая сумма группы: {total_group_sum:.2f}</b>"
+                        
+                        # Отправляем сообщение с итогами
+                        await callback.message.answer(all_results, parse_mode="HTML")
+                        await callback.answer("✅ Итоги всех участников")
+                        return
+                    else:
+                        logger.warning("Общая сумма группы равна 0")
+                
                 await callback.answer("Ни один из участников еще не сделал свой выбор", show_alert=True)
                 return
-            
-            # Формируем сообщение с итогами всех участников
+                
+            # Формируем сообщение с итогами всех участников на основе user_results
             all_results = "<b>📊 Итоги всех участников:</b>\n\n"
             
             total_group_sum = Decimal("0.00")
-            for user_id, result in user_results.items():
+            for user_id_str, result in user_results.items():
                 # Получаем имя пользователя
                 try:
-                    user = await callback.bot.get_chat_member(callback.message.chat.id, int(user_id))
+                    user_id = int(user_id_str)
+                    user = await callback.bot.get_chat_member(callback.message.chat.id, user_id)
                     user_name = user.user.username or f"{user.user.first_name}"
-                except Exception:
-                    user_name = f"User {user_id}"
+                except Exception as e:
+                    logger.error(f"Ошибка при получении информации о пользователе: {e}")
+                    user_name = f"User {user_id_str}"
                 
                 # Получаем сумму пользователя
                 user_sum = result.get("total_sum", 0)
@@ -591,6 +728,7 @@ async def handle_show_all_results(callback: CallbackQuery):
             await callback.answer("✅ Итоги всех участников")
             
         else:
+            logger.warning("Не найдены данные о результатах")
             await callback.answer("Данные о результатах не найдены", show_alert=True)
             
     except Exception as e:
