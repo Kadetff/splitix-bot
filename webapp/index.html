@@ -423,7 +423,14 @@
             try {
                 debugInfo.innerHTML += `Запрос данных для message_id: ${messageId}<br>`;
                 
-                const response = await fetch(`${API_BASE_URL}/api/receipt/${messageId}`);
+                // Добавляем user_id в параметры запроса, если он известен
+                const url = userId ? 
+                    `${API_BASE_URL}/api/receipt/${messageId}?user_id=${userId}` : 
+                    `${API_BASE_URL}/api/receipt/${messageId}`;
+                
+                debugInfo.innerHTML += `URL запроса: ${url}<br>`;
+                
+                const response = await fetch(url);
                 
                 if (!response.ok) {
                     throw new Error(`Ошибка HTTP: ${response.status}`);
@@ -444,14 +451,22 @@
                     debugInfo.innerHTML += `Товар ${idx}: ${item.description}, цена: ${item.unit_price_from_openai}, общая сумма: ${item.total_amount_from_openai}<br>`;
                 });
                 
-                // Получаем данные о выборе пользователя (если есть)
+                // Получаем данные о выборе текущего пользователя (если есть)
                 const userSelections = receiptData.user_selections || {};
-                const userSelection = userSelections[userId] || {};
+                // Подготовка счетчиков - используем пустые счетчики, если нет данных для текущего пользователя
+                userCounts = {}; // Сброс счетчиков
                 
-                // Инициализируем счетчики
-                items.forEach((item, index) => {
-                    userCounts[index] = userSelection[index] || 0;
-                });
+                // Если есть выбор текущего пользователя, используем его
+                if (userSelections[userId]) {
+                    debugInfo.innerHTML += `Найден выбор для текущего пользователя: ${JSON.stringify(userSelections[userId])}<br>`;
+                    userCounts = userSelections[userId];
+                } else {
+                    debugInfo.innerHTML += `Выбор для текущего пользователя не найден, инициализируем пустые счетчики<br>`;
+                    // Инициализируем пустые счетчики для всех товаров
+                    items.forEach((item, index) => {
+                        userCounts[index] = 0;
+                    });
+                }
                 
                 // Отображаем информацию о чеке
                 updateReceiptInfo();

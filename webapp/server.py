@@ -66,6 +66,10 @@ def get_receipt_data(message_id):
     """Получение данных чека по ID сообщения"""
     logger.info(f"Запрос данных чека для message_id: {message_id}")
     
+    # Получаем user_id из query параметров, если есть
+    user_id = request.args.get('user_id')
+    logger.info(f"Запрос от user_id: {user_id}")
+    
     if message_id not in receipt_data:
         # Для тестирования возвращаем тестовые данные только если включен режим отладки
         if app.debug:
@@ -88,8 +92,22 @@ def get_receipt_data(message_id):
             logger.warning(f"Receipt data not found for message_id: {message_id}")
             return jsonify({"error": "Receipt not found"}), 404
     
-    logger.info(f"Returning receipt data for message_id: {message_id}")
-    return jsonify(receipt_data[message_id])
+    # Создаем копию данных, чтобы не изменять оригинал
+    result_data = receipt_data[message_id].copy()
+    
+    # Фильтруем user_selections, чтобы передавать только данные текущего пользователя
+    if 'user_selections' in result_data and user_id:
+        # Создаем новый словарь только с данными текущего пользователя
+        filtered_selections = {}
+        if user_id in result_data['user_selections']:
+            filtered_selections[user_id] = result_data['user_selections'][user_id]
+        result_data['user_selections'] = filtered_selections
+    else:
+        # Если user_id не указан или нет user_selections, возвращаем пустой словарь
+        result_data['user_selections'] = {}
+    
+    logger.info(f"Returning filtered receipt data for message_id: {message_id}, user_id: {user_id}")
+    return jsonify(result_data)
 
 @app.route('/api/receipt/<int:message_id>', methods=['POST'])
 def save_receipt_data(message_id):
