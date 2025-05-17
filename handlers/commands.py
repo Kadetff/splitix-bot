@@ -1,6 +1,7 @@
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, ChatType
+from aiogram.types import Message
+from aiogram.enums import ChatType
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from handlers.photo import ReceiptStates
