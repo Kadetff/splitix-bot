@@ -1,11 +1,17 @@
 import os
 import json
 import logging
+import time
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 
 # Получаем абсолютный путь к директории webapp
 webapp_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Настраиваем путь к файлу сохранения данных
+data_dir = os.path.join(webapp_dir, 'data')
+data_file = os.path.join(data_dir, 'receipt_data.json')
 
 app = Flask(__name__)
 CORS(app)  # Разрешаем CORS для всех маршрутов
@@ -16,6 +22,89 @@ logger = logging.getLogger(__name__)
 
 # Хранилище данных (в реальном приложении должно быть заменено на БД)
 receipt_data = {}
+
+# Константы для управления сроком жизни данных
+DATA_EXPIRATION_DAYS = 7  # Данные хранятся 7 дней
+
+# Функция для загрузки данных из файла
+def load_receipt_data():
+    global receipt_data
+    try:
+        # Проверяем существование директории data
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+            logger.info(f"Создана директория для данных: {data_dir}")
+        
+        # Проверяем существование файла с данными
+        if os.path.exists(data_file):
+            with open(data_file, 'r', encoding='utf-8') as f:
+                loaded_data = json.load(f)
+                
+                # Проверяем структуру данных и добавляем метаданные, если их нет
+                clean_data = {}
+                for msg_id, msg_data in loaded_data.items():
+                    # Если есть поле 'created_at', используем его, иначе добавляем текущее время
+                    if isinstance(msg_data, dict):
+                        if 'metadata' not in msg_data:
+                            msg_data['metadata'] = {
+                                'created_at': time.time(),  # Текущее время в секундах
+                                'last_updated': time.time()
+                            }
+                        clean_data[msg_id] = msg_data
+                
+                receipt_data = clean_data
+                logger.info(f"Загружены данные из {data_file}, количество записей: {len(receipt_data)}")
+                
+                # Очищаем устаревшие данные
+                cleanup_expired_data()
+        else:
+            logger.info(f"Файл данных {data_file} не существует, используем пустое хранилище.")
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке данных из файла: {e}")
+        receipt_data = {}
+
+# Функция для очистки устаревших данных
+def cleanup_expired_data():
+    try:
+        # Рассчитываем временную границу для удаления (7 дней назад)
+        expiration_time = time.time() - (DATA_EXPIRATION_DAYS * 24 * 60 * 60)
+        
+        # Ищем устаревшие записи
+        expired_keys = []
+        for msg_id, msg_data in receipt_data.items():
+            if isinstance(msg_data, dict) and 'metadata' in msg_data:
+                created_at = msg_data['metadata'].get('created_at', 0)
+                if created_at < expiration_time:
+                    expired_keys.append(msg_id)
+        
+        # Удаляем устаревшие записи
+        for key in expired_keys:
+            del receipt_data[key]
+            
+        if expired_keys:
+            logger.info(f"Удалено {len(expired_keys)} устаревших записей")
+            
+        # Сохраняем обновленные данные
+        save_receipt_data()
+    except Exception as e:
+        logger.error(f"Ошибка при очистке устаревших данных: {e}")
+
+# Функция для сохранения данных в файл
+def save_receipt_data():
+    try:
+        # Проверяем существование директории data
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+        
+        # Сохраняем данные в файл
+        with open(data_file, 'w', encoding='utf-8') as f:
+            json.dump(receipt_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"Данные сохранены в файл {data_file}, количество записей: {len(receipt_data)}")
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении данных в файл: {e}")
+
+# Загружаем данные при запуске приложения
+load_receipt_data()
 
 @app.route('/')
 def index():
@@ -95,6 +184,10 @@ def get_receipt_data(message_id):
     # Создаем копию данных, чтобы не изменять оригинал
     result_data = receipt_data[message_id].copy()
     
+    # Удаляем служебные метаданные из ответа
+    if 'metadata' in result_data:
+        del result_data['metadata']
+    
     # Фильтруем user_selections, чтобы передавать только данные текущего пользователя
     if 'user_selections' in result_data and user_id:
         # Создаем новый словарь только с данными текущего пользователя
@@ -116,7 +209,20 @@ def save_receipt_data(message_id):
     
     try:
         data = request.json
+        
+        # Добавляем метаданные о времени создания и обновления
+        if 'metadata' not in data:
+            data['metadata'] = {
+                'created_at': time.time(),
+                'last_updated': time.time()
+            }
+        else:
+            data['metadata']['last_updated'] = time.time()
+            
         receipt_data[message_id] = data
+        
+        # Сохраняем данные в файл после изменения
+        save_receipt_data()
         return jsonify({"success": True, "message": "Data saved successfully"})
     except Exception as e:
         logger.error(f"Ошибка при сохранении данных: {e}")
@@ -133,12 +239,31 @@ def save_user_selection(message_id):
         selected_items = data.get('selected_items')
         
         if message_id not in receipt_data:
-            receipt_data[message_id] = {"items": [], "user_selections": {}}
+            receipt_data[message_id] = {
+                "items": [], 
+                "user_selections": {},
+                "metadata": {
+                    'created_at': time.time(),
+                    'last_updated': time.time()
+                }
+            }
         
         if 'user_selections' not in receipt_data[message_id]:
             receipt_data[message_id]['user_selections'] = {}
         
+        # Обновляем время последнего обновления
+        if 'metadata' not in receipt_data[message_id]:
+            receipt_data[message_id]['metadata'] = {
+                'created_at': time.time(),
+                'last_updated': time.time()
+            }
+        else:
+            receipt_data[message_id]['metadata']['last_updated'] = time.time()
+            
         receipt_data[message_id]['user_selections'][user_id] = selected_items
+        
+        # Сохраняем данные в файл после изменения
+        save_receipt_data()
         
         return jsonify({"success": True, "message": "Selection saved successfully"})
     except Exception as e:
@@ -153,6 +278,31 @@ def debug():
         "webapp_dir": webapp_dir,
         "current_dir": os.getcwd()
     })
+
+# Маршрут для очистки устаревших данных
+@app.route('/maintenance/cleanup', methods=['POST'])
+def trigger_cleanup():
+    """Endpoint для запуска очистки устаревших данных"""
+    try:
+        # Получаем количество записей до очистки
+        before_count = len(receipt_data)
+        
+        # Запускаем очистку
+        cleanup_expired_data()
+        
+        # Получаем количество записей после очистки
+        after_count = len(receipt_data)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Очистка выполнена успешно",
+            "records_before": before_count,
+            "records_after": after_count,
+            "deleted": before_count - after_count
+        })
+    except Exception as e:
+        logger.error(f"Ошибка при выполнении очистки: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))

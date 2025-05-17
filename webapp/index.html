@@ -16,6 +16,11 @@
             text-align: center;
             margin-bottom: 20px;
         }
+        .header p {
+            margin-top: 5px;
+            color: #666;
+            font-size: 14px;
+        }
         .item {
             background-color: white;
             border-radius: 8px;
@@ -169,11 +174,26 @@
             padding-top: 15px;
             border-top: 1px dashed #ddd;
         }
+        .save-notification {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Выберите позиции</h1>
+        <p>Ваш выбор автоматически сохраняется</p>
     </div>
     
     <!-- Информация о чеке -->
@@ -184,6 +204,9 @@
     <div class="items-container" id="items-container">
         <div class="loading">Загрузка данных...</div>
     </div>
+    
+    <!-- Уведомление о сохранении -->
+    <div class="save-notification" id="save-notification">Выбор сохранен</div>
     
     <!-- Отладочная панель внизу страницы -->
     <div class="debug-panel">
@@ -567,6 +590,8 @@
                         userCounts[id]--;
                         updateItemCount(id);
                         updateTotal();
+                        // Автоматически сохраняем выбор пользователя при изменении
+                        autoSaveUserSelection();
                     }
                 });
             });
@@ -581,6 +606,8 @@
                         userCounts[id]++;
                         updateItemCount(id);
                         updateTotal();
+                        // Автоматически сохраняем выбор пользователя при изменении
+                        autoSaveUserSelection();
                     }
                 });
             });
@@ -686,7 +713,7 @@
             try {
                 debugInfo.innerHTML += `Отправка выбора: ${JSON.stringify(selectedItems)}<br>`;
                 
-                // Сохраняем выбор на сервере
+                // Выбор уже автоматически сохранен, но обновим его еще раз для уверенности
                 const response = await fetch(`${API_BASE_URL}/api/selection/${messageId}`, {
                     method: 'POST',
                     headers: {
@@ -787,6 +814,59 @@
         function showError(message) {
             const container = document.getElementById('items-container');
             container.innerHTML = `<div class="error">${message}</div>`;
+        }
+        
+        // Функция для автоматического сохранения выбора пользователя
+        async function autoSaveUserSelection() {
+            try {
+                // Подготавливаем данные о выбранных товарах
+                const selectedItems = {};
+                
+                items.forEach((item, index) => {
+                    if (userCounts[index] > 0) {
+                        selectedItems[index] = userCounts[index];
+                    }
+                });
+                
+                debugInfo.innerHTML += `Автосохранение выбора: ${JSON.stringify(selectedItems)}<br>`;
+                
+                // Сохраняем выбор на сервере
+                const response = await fetch(`${API_BASE_URL}/api/selection/${messageId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        selected_items: selectedItems
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Ошибка HTTP: ${response.status}`);
+                }
+                
+                // Показываем уведомление о сохранении
+                showSaveNotification();
+                
+                // Тихое обновление отладочной информации без оповещения пользователя
+                debugInfo.innerHTML += `<span style="color: green;">Выбор автоматически сохранен</span><br>`;
+            } catch (error) {
+                console.error('Ошибка при автосохранении выбора:', error);
+                debugInfo.innerHTML += `<span style="color: red;">Ошибка при автосохранении: ${error.message}</span><br>`;
+                // Не показываем пользователю сообщение об ошибке при автосохранении
+            }
+        }
+        
+        // Функция для отображения уведомления о сохранении
+        function showSaveNotification() {
+            const notification = document.getElementById('save-notification');
+            notification.style.opacity = '1';
+            
+            // Скрываем уведомление через 2 секунды
+            setTimeout(() => {
+                notification.style.opacity = '0';
+            }, 2000);
         }
         
         // Запускаем приложение при загрузке страницы
