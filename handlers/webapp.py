@@ -24,44 +24,72 @@ async def handle_all_messages(message: Message, state: FSMContext):
     # Проверяем наличие web_app_data
     if hasattr(message, 'web_app_data') and message.web_app_data:
         logger.info(f"Обнаружены данные WebApp: {message.web_app_data.data}")
-    else:
-        # Проверяем все атрибуты сообщения
-        attrs = dir(message)
-        logger.debug(f"Атрибуты сообщения: {', '.join([a for a in attrs if not a.startswith('_')])}")
-        
-        # Проверяем, есть ли в сообщении JSON-данные
-        if hasattr(message, 'text') and message.text:
-            try:
-                # Попробуем распарсить текст как JSON
-                try_parse = json.loads(message.text)
-                logger.debug(f"Сообщение содержит JSON: {message.text}")
+        # Перенаправляем на обработчик WebApp данных
+        await handle_webapp_data(message, state)
+        return
+    
+    # Проверяем все атрибуты сообщения
+    attrs = dir(message)
+    logger.debug(f"Атрибуты сообщения: {', '.join([a for a in attrs if not a.startswith('_')])}")
+    
+    # Расширенное логирование важных атрибутов
+    logger.debug(f"Text: {getattr(message, 'text', 'None')}")
+    logger.debug(f"ContentType: {getattr(message, 'content_type', 'None')}")
+    logger.debug(f"WebAppData: {getattr(message, 'web_app_data', 'None')}")
+    
+    # Проверяем, есть ли в сообщении JSON-данные
+    if hasattr(message, 'text') and message.text:
+        try:
+            # Попробуем распарсить текст как JSON
+            try_parse = json.loads(message.text)
+            logger.info(f"Сообщение содержит JSON: {message.text}")
+            
+            # Проверяем, содержит ли JSON данные messageId и selectedItems
+            if 'messageId' in try_parse and 'selectedItems' in try_parse:
+                logger.info(f"Найдены данные WebApp в тексте сообщения: {message.text}")
                 
-                # Проверяем, содержит ли JSON данные messageId и selectedItems
-                if 'messageId' in try_parse and 'selectedItems' in try_parse:
-                    logger.info(f"Найдены данные WebApp в тексте сообщения: {message.text}")
-                    
-                    # Создаем временные данные для обработки
-                    class WebAppData:
-                        def __init__(self, data):
-                            self.data = data
-                    
-                    # Добавляем web_app_data к сообщению
-                    message.web_app_data = WebAppData(message.text)
-                    
-                    # Перенаправляем на обработку в handle_webapp_data
-                    logger.info("Перенаправляем на обработку в handle_webapp_data")
-            except json.JSONDecodeError:
-                pass
+                # Создаем временные данные для обработки
+                class WebAppData:
+                    def __init__(self, data):
+                        self.data = data
+                
+                # Добавляем web_app_data к сообщению
+                message.web_app_data = WebAppData(message.text)
+                
+                # Перенаправляем на обработку в handle_webapp_data
+                logger.info("Перенаправляем на обработку в handle_webapp_data")
+                await handle_webapp_data(message, state)
+                return
+        except json.JSONDecodeError:
+            pass
+    
+    # Если это регулярное сообщение без обработки, просто логируем
+    logger.debug("Сообщение не опознано как данные WebApp, пропускаем")
 
 @router.message(F.web_app_data)
 async def handle_webapp_data(message: Message, state: FSMContext):
     """Обработчик данных, полученных от веб-приложения"""
     try:
         logger.debug(f"Получен объект сообщения: {message}")
-        logger.info(f"Получены данные от веб-приложения: {message.web_app_data.data}")
+        logger.info(f"Получены данные от веб-приложения: {getattr(message.web_app_data, 'data', 'None')}")
+        
+        # Проверяем наличие данных
+        if not hasattr(message, 'web_app_data') or not message.web_app_data:
+            logger.warning("WebApp данные отсутствуют в сообщении")
+            await message.answer("❌ Не удалось получить данные из мини-приложения. Пожалуйста, попробуйте снова.")
+            return
+            
+        # Получаем данные
+        webapp_data = message.web_app_data.data
+        
+        # Проверяем, что данные не пустые
+        if not webapp_data:
+            logger.warning("WebApp данные пустые")
+            await message.answer("❌ Получены пустые данные из мини-приложения. Пожалуйста, попробуйте снова.")
+            return
         
         # Парсим JSON-данные
-        data = json.loads(message.web_app_data.data)
+        data = json.loads(webapp_data)
         logger.debug(f"Распарсенные данные: {data}")
         
         message_id = data.get('messageId')
@@ -112,7 +140,8 @@ async def handle_webapp_data(message: Message, state: FSMContext):
         
         # Формируем сообщение с итогами
         user_mention = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name}"
-        summary = f"<b>{user_mention}, ваш выбор из веб-приложения:</b>\n\n"
+        summary = f"<b>✅ {user_mention}, ваш выбор подтвержден!</b>\n\n"
+        summary += f"<b>📋 Выбранные позиции:</b>\n"
         
         items = message_data.get("items", [])
         service_charge_percent = message_data.get("service_charge_percent")
@@ -157,28 +186,42 @@ async def handle_webapp_data(message: Message, state: FSMContext):
                 else:
                     continue
                 
-                # Добавляем позицию в итог
+                # Добавляем позицию в итог с форматированной ценой за единицу
                 total_sum += item_total
-                summary += f"- {description}: {count} шт. = {item_total:.2f}\n"
+                unit_price_str = ""
+                if unit_price_openai:
+                    unit_price_str = f" (цена: {Decimal(str(unit_price_openai)):.2f})"
+                    
+                summary += f"• {description}: {count} шт.{unit_price_str} = <b>{item_total:.2f}</b>\n"
+        
+        # Добавляем разделитель
+        summary += "\n<b>📊 Расчет итоговой суммы:</b>\n"
+        summary += f"• Сумма выбранных позиций: <b>{total_sum:.2f}</b>\n"
         
         # Применяем скидку
+        discount_applied = False
         if actual_discount_percent and actual_discount_percent > 0:
             discount_amount = (total_sum * Decimal(str(actual_discount_percent)) / Decimal("100")).quantize(Decimal("0.01"))
             total_sum -= discount_amount
-            summary += f"\n<b>Скидка ({actual_discount_percent}%): -{discount_amount:.2f}</b>"
+            summary += f"• Скидка ({actual_discount_percent}%): <b>-{discount_amount:.2f}</b>\n"
+            discount_applied = True
         elif total_discount_amount is not None and total_check_sum > 0:
             user_discount = (Decimal(str(total_discount_amount)) * total_sum / total_check_sum).quantize(Decimal("0.01"))
             total_sum -= user_discount
-            summary += f"\n<b>Скидка: -{user_discount:.2f}</b>"
+            summary += f"• Скидка: <b>-{user_discount:.2f}</b>\n"
+            discount_applied = True
         
         # Добавляем информацию о сервисном сборе
         if service_charge_percent is not None:
             service_amount = (total_sum * Decimal(str(service_charge_percent)) / Decimal("100")).quantize(Decimal("0.01"))
             total_sum += service_amount
-            summary += f"\n<b>Плата за обслуживание ({service_charge_percent}%): {service_amount:.2f}</b>"
+            summary += f"• Плата за обслуживание ({service_charge_percent}%): <b>+{service_amount:.2f}</b>\n"
         
         # Добавляем итоговую сумму
-        summary += f"\n\n<b>Итоговая сумма: {total_sum:.2f}</b>"
+        summary += f"\n<b>💰 Итоговая сумма к оплате: {total_sum:.2f}</b>"
+        
+        # Добавляем полезную информацию
+        summary += "\n\n<i>Спасибо за использование бота СплитЧек! Надеемся, это было полезно.</i>"
         
         # Отправляем итоговое сообщение в чат
         await message.answer(summary, parse_mode="HTML")
