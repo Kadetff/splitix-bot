@@ -49,8 +49,10 @@ def create_items_keyboard_with_counters(items: list[dict], user_specific_counts:
     if view_mode == "default":
         builder.row(InlineKeyboardButton(text="✅ Подтвердить выбор", callback_data="confirm_selection"))
         
-        # Добавляем кнопку для запуска веб-приложения, если указан message_id
-        if message_id is not None and WEBAPP_URL and not ("http://localhost" in WEBAPP_URL or "http://127.0.0.1" in WEBAPP_URL):
+        # Добавляем кнопку для запуска веб-приложения только если это личный чат
+        # и только если у нас есть message_id и валидный WEBAPP_URL
+        is_private_chat = chat_type == "private"
+        if is_private_chat and message_id is not None and WEBAPP_URL and not ("http://localhost" in WEBAPP_URL or "http://127.0.0.1" in WEBAPP_URL):
             # Очищаем URL от кавычек, если они есть
             clean_url = WEBAPP_URL.strip('"\'')
             
@@ -59,37 +61,30 @@ def create_items_keyboard_with_counters(items: list[dict], user_specific_counts:
                 # Используем параметр в URL вместо query параметра
                 webapp_url = f"{clean_url}/{message_id}"
                 
-                # Логируем информацию о создании кнопки и типе чата
+                # Логируем информацию о создании кнопки
                 logger.info(f"Создаем кнопку WebApp с URL: {webapp_url}, тип чата: {chat_type}")
                 
-                # Проверяем тип чата
-                is_group_chat = chat_type in ('group', 'supergroup')
-                
                 try:
-                    # Создаем WebApp кнопку с учетом типа чата
-                    if is_group_chat:
-                        # Для групповых чатов создаем кнопку с укороченным текстом
-                        webapp_button = InlineKeyboardButton(
-                            text="🌐 Веб-интерфейс", 
-                            web_app=WebAppInfo(url=webapp_url)
-                        )
-                    else:
-                        # Для личных чатов стандартная кнопка
-                        webapp_button = InlineKeyboardButton(
-                            text="🌐 Открыть в веб-интерфейсе", 
-                            web_app=WebAppInfo(url=webapp_url)
-                        )
+                    # Создаем WebApp кнопку
+                    webapp_button = InlineKeyboardButton(
+                        text="🌐 Открыть в веб-интерфейсе", 
+                        web_app=WebAppInfo(url=webapp_url)
+                    )
                     
                     # Добавляем кнопку в клавиатуру
                     builder.row(webapp_button)
-                    logger.info(f"WebApp кнопка успешно создана для чата типа: {chat_type}")
+                    logger.info(f"WebApp кнопка успешно создана для личного чата")
                 except Exception as e:
                     logger.error(f"Ошибка при создании кнопки WebApp: {e}", exc_info=True)
-                    # Возможно, проблема в совместимости веб-приложений с этим типом чата
-                    if "BUTTON_TYPE_INVALID" in str(e):
-                        logger.error(f"Telegram не разрешает использовать WebApp кнопки в этом типе чата: {chat_type}")
             else:
                 logger.warning(f"Невалидный message_id: {message_id}, тип: {type(message_id)}. WebApp кнопка не будет добавлена.")
+        
+        # Для групповых чатов добавляем специальную кнопку с инструкцией
+        elif not is_private_chat and message_id is not None and WEBAPP_URL:
+            builder.row(InlineKeyboardButton(
+                text="💻 Используйте инлайн режим для веб-приложения", 
+                callback_data="show_inline_help"
+            ))
         
         builder.row(InlineKeyboardButton(text="📊 Мой текущий выбор", callback_data="show_my_summary"))
         builder.row(InlineKeyboardButton(text="📈 Общий итог по чеку", callback_data="show_total_summary"))
