@@ -1,7 +1,9 @@
 import logging
 from aiogram import Router, F
 from aiogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent
+from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 from uuid import uuid4
+from config.settings import WEBAPP_URL
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -13,8 +15,21 @@ async def process_inline_query(query: InlineQuery):
     
     # Создаем уникальные ID для результатов
     split_id = str(uuid4())
+    webapp_id = str(uuid4())
     help_id = str(uuid4())
     about_id = str(uuid4())
+    
+    # Создаем кнопку с веб-приложением для встраивания в инлайн-результат
+    webapp_keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Открыть приложение", 
+                    web_app=WebAppInfo(url=WEBAPP_URL)
+                )
+            ]
+        ]
+    )
     
     # Создаем результаты для отображения
     results = [
@@ -26,6 +41,17 @@ async def process_inline_query(query: InlineQuery):
                 message_text="/split"
             ),
             thumbnail_url="https://img.icons8.com/color/48/000000/split-files.png"
+        ),
+        InlineQueryResultArticle(
+            id=webapp_id,
+            title="🌐 Открыть веб-приложение",
+            description="Запустите веб-приложение для разделения чека",
+            input_message_content=InputTextMessageContent(
+                message_text="*СплитЧек* - Нажмите на кнопку ниже, чтобы открыть веб-приложение для разделения чека:",
+                parse_mode="Markdown"
+            ),
+            reply_markup=webapp_keyboard,
+            thumbnail_url="https://img.icons8.com/color/48/000000/web.png"
         ),
         InlineQueryResultArticle(
             id=help_id,
