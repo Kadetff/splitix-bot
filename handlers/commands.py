@@ -1,6 +1,6 @@
 import logging
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, ChatType
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from handlers.photo import ReceiptStates
@@ -39,8 +39,24 @@ async def cmd_help(message: Message):
 
 @router.message(Command("split"))
 async def cmd_split(message: Message, state: FSMContext):
+    # Определяем тип чата
+    is_private_chat = message.chat.type == ChatType.PRIVATE
+    
     await state.set_state(ReceiptStates.waiting_for_photo)
-    await message.answer("Пожалуйста, пришлите фото чека.")
+    
+    if is_private_chat:
+        await message.answer("Пожалуйста, пришлите фото чека.")
+    else:
+        # Для групповых чатов даем более подробную инструкцию и запрашиваем права
+        await message.answer(
+            "✅ Бот настроен на прием фото чека в этой группе.\n\n"
+            "📸 Отправьте фото чека следующим сообщением.\n\n"
+            "⚠️ Для корректной работы в группе убедитесь, что:\n"
+            "1. Бот имеет права администратора\n"
+            "2. Включено право на отправку ссылок\n"
+            "3. Бот может использовать веб-приложения\n\n"
+            "💡 Совет: для полной функциональности лучше использовать личный чат с ботом @Splitix_bot"
+        )
 
 @router.message(Command("webapp"))
 async def cmd_webapp(message: Message):

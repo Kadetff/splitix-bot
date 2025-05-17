@@ -3,7 +3,7 @@ import aiohttp
 import json
 from decimal import Decimal
 from aiogram import F, Router
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardBuilder
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -231,29 +231,66 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         else:
             api_saved = False
         
-        # Создаем клавиатуру в зависимости от доступности WebApp
-        if webapp_enabled:
-            logger.info("Создаем клавиатуру с WebApp кнопкой")
-            keyboard = create_items_keyboard_with_counters(items, empty_user_counts, message_id=message_id)
-            webapp_info = "\n\n<i>💻 Доступно в веб-приложении</i>"
-        else:
-            logger.info("Создаем клавиатуру без WebApp кнопки")
-            keyboard = create_items_keyboard_with_counters(items, empty_user_counts)
-            webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно, используйте кнопки ниже</i>" if WEBAPP_URL else ""
-        
-        # Отправляем сообщение с информацией о чеке и клавиатурой
-        result_message = await processing_message.edit_text(
-            response_msg_text + webapp_info,
-            reply_markup=keyboard,
-            parse_mode="HTML"
-        )
-        
-        # Сохраняем данные в глобальный словарь message_states
-        message_states[result_message.message_id] = receipt_data
-        
-        # Устанавливаем состояние ожидания выбора товаров
-        await state.set_state(ReceiptStates.waiting_for_items_selection)
-        logger.info("Состояние установлено: waiting_for_items_selection")
+        # Создаем клавиатуру и отправляем сообщение, обрабатывая возможные ошибки
+        try:
+            # Создаем клавиатуру в зависимости от доступности WebApp
+            if webapp_enabled:
+                logger.info("Создаем клавиатуру с WebApp кнопкой")
+                keyboard = create_items_keyboard_with_counters(items, empty_user_counts, message_id=message_id, chat_type=message.chat.type)
+                webapp_info = "\n\n<i>💻 Доступно в веб-приложении</i>"
+            else:
+                logger.info("Создаем клавиатуру без WebApp кнопки")
+                keyboard = create_items_keyboard_with_counters(items, empty_user_counts, chat_type=message.chat.type)
+                webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно, используйте кнопки ниже</i>" if WEBAPP_URL else ""
+            
+            # Отправляем сообщение с информацией о чеке и клавиатурой
+            result_message = await processing_message.edit_text(
+                response_msg_text + webapp_info,
+                reply_markup=keyboard,
+                parse_mode="HTML"
+            )
+            
+            # Сохраняем данные в глобальный словарь message_states
+            message_states[result_message.message_id] = receipt_data
+            
+            # Устанавливаем состояние ожидания выбора товаров
+            await state.set_state(ReceiptStates.waiting_for_items_selection)
+            logger.info("Состояние установлено: waiting_for_items_selection")
+            
+        except Exception as keyboard_error:
+            logger.error(f"Ошибка при создании клавиатуры или отправке сообщения: {keyboard_error}", exc_info=True)
+            
+            # Пробуем создать простую клавиатуру без WebApp и отправить ее
+            try:
+                # Создаем простую клавиатуру только с кнопкой подтверждения
+                simple_keyboard = InlineKeyboardBuilder()
+                for idx, item in enumerate(items):
+                    description = item.get("description", "N/A")[:25]
+                    simple_keyboard.row(InlineKeyboardButton(text=f"{description}", callback_data=f"increment_item:{idx}"))
+                
+                simple_keyboard.row(InlineKeyboardButton(text="✅ Подтвердить выбор", callback_data="confirm_selection"))
+                
+                # Повторно отправляем сообщение с простой клавиатурой
+                logger.info("Пробуем отправить сообщение с простой клавиатурой после ошибки")
+                result_message = await processing_message.edit_text(
+                    response_msg_text + "\n\n<i>⚠️ Упрощенный режим из-за ограничений чата</i>",
+                    reply_markup=simple_keyboard.as_markup(),
+                    parse_mode="HTML"
+                )
+                
+                # Сохраняем данные в глобальный словарь message_states
+                message_states[result_message.message_id] = receipt_data
+                
+                # Устанавливаем состояние ожидания выбора товаров
+                await state.set_state(ReceiptStates.waiting_for_items_selection)
+                logger.info("Состояние установлено в упрощенном режиме: waiting_for_items_selection")
+                
+            except Exception as simple_error:
+                logger.error(f"Критическая ошибка при создании простой клавиатуры: {simple_error}", exc_info=True)
+                await processing_message.edit_text(
+                    "❌ Возникла ошибка при создании интерфейса. Пожалуйста, используйте личный чат с ботом @Splitix_bot"
+                )
+                await state.clear()
         
     except Exception as e:
         logger.error(f"Ошибка при обработке фото: {e}", exc_info=True)

@@ -1,8 +1,9 @@
 import logging
 from decimal import Decimal
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from utils.keyboards import create_items_keyboard_with_counters
 from handlers.photo import ReceiptStates
 from typing import Dict, Any
@@ -59,8 +60,29 @@ async def handle_item_increment(callback: CallbackQuery, state: FSMContext):
             count_message = f"Ваш счетчик для '{item_info.get('description', 'N/A')[:20]}...' сброшен"
         
         # Обновляем клавиатуру
-        keyboard = create_items_keyboard_with_counters(items, user_counts)
-        await callback.message.edit_reply_markup(reply_markup=keyboard)
+        try:
+            keyboard = create_items_keyboard_with_counters(items, user_counts, chat_type=callback.message.chat.type)
+            await callback.message.edit_reply_markup(reply_markup=keyboard)
+        except Exception as keyboard_error:
+            logger.error(f"Ошибка при обновлении клавиатуры: {keyboard_error}", exc_info=True)
+            
+            # Пробуем создать простую клавиатуру без WebApp
+            try:
+                simple_keyboard = InlineKeyboardBuilder()
+                for idx, item in enumerate(items):
+                    description = item.get("description", "N/A")[:25]
+                    current_count = user_counts.get(idx, 0)
+                    openai_quantity = item.get("quantity_from_openai", 1)
+                    simple_keyboard.row(InlineKeyboardButton(
+                        text=f"[{current_count}/{openai_quantity}] {description}", 
+                        callback_data=f"increment_item:{idx}"
+                    ))
+                
+                simple_keyboard.row(InlineKeyboardButton(text="✅ Подтвердить выбор", callback_data="confirm_selection"))
+                await callback.message.edit_reply_markup(reply_markup=simple_keyboard.as_markup())
+            except Exception as simple_error:
+                logger.error(f"Критическая ошибка при создании простой клавиатуры: {simple_error}", exc_info=True)
+                await callback.answer("Ошибка при обновлении интерфейса. Пожалуйста, попробуйте еще раз.", show_alert=True)
         
         # Отправляем уведомление
         await callback.answer(count_message)
@@ -213,7 +235,7 @@ async def handle_show_my_summary(callback: CallbackQuery, state: FSMContext):
         summary_text = f"**{user_mention}, ваш текущий выбор:**\\n\\n"
         
         # Создаем клавиатуру с текущим выбором
-        keyboard = create_items_keyboard_with_counters(items, user_counts, view_mode="my_summary_display")
+        keyboard = create_items_keyboard_with_counters(items, user_counts, view_mode="my_summary_display", chat_type=callback.message.chat.type)
         
         # Обновляем сообщение
         await callback.message.edit_text(summary_text, reply_markup=keyboard)
@@ -253,7 +275,7 @@ async def handle_show_total_summary(callback: CallbackQuery, state: FSMContext):
         summary_text = "**Общий итог по чеку (выбрано всеми / количество в чеке):**\\n\\n"
         
         # Создаем клавиатуру с общим итогом
-        keyboard = create_items_keyboard_with_counters(items, aggregated_counts, view_mode="total_summary_display")
+        keyboard = create_items_keyboard_with_counters(items, aggregated_counts, view_mode="total_summary_display", chat_type=callback.message.chat.type)
         
         # Обновляем сообщение
         await callback.message.edit_text(summary_text, reply_markup=keyboard)
@@ -285,7 +307,7 @@ async def handle_back_to_selection(callback: CallbackQuery, state: FSMContext):
         user_counts = user_selections.get(user_id, {})
         
         # Создаем клавиатуру выбора
-        keyboard = create_items_keyboard_with_counters(items, user_counts)
+        keyboard = create_items_keyboard_with_counters(items, user_counts, chat_type=callback.message.chat.type)
         
         # Обновляем сообщение
         await callback.message.edit_text(
