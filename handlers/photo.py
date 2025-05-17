@@ -1,9 +1,11 @@
 import logging
 import aiohttp
 import json
+import asyncio
 from decimal import Decimal
 from aiogram import F, Router
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardBuilder
+from aiogram.types import Message, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -11,7 +13,6 @@ from services.openai_service import process_receipt_with_openai
 from utils.keyboards import create_items_keyboard_with_counters
 from typing import Dict, Any
 from config.settings import WEBAPP_URL
-import asyncio
 
 logger = logging.getLogger(__name__)
 router = Router()
