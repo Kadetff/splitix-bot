@@ -179,16 +179,27 @@ def get_receipt_data(message_id):
     if 'user_selections' in result_data and user_id:
         # Преобразуем user_id в строку для сравнения
         user_id_str = str(user_id)
+        
+        # Логируем состояние user_selections для отладки
+        logger.info(f"User selections в хранилище: {result_data['user_selections']}")
+        
         # Создаем новый словарь только с данными текущего пользователя
         filtered_selections = {}
         if user_id_str in result_data['user_selections']:
-            filtered_selections[user_id_str] = result_data['user_selections'][user_id_str]
+            # Получаем выборы текущего пользователя
+            user_selections = result_data['user_selections'][user_id_str]
+            logger.info(f"Найдены выборы для пользователя {user_id_str}: {user_selections}")
+            filtered_selections[user_id_str] = user_selections
+        else:
+            logger.info(f"Выборы для пользователя {user_id_str} не найдены")
+        
         result_data['user_selections'] = filtered_selections
     else:
         # Если user_id не указан или нет user_selections, возвращаем пустой словарь
+        logger.info(f"Нет user_id или user_selections пуст, возвращаем пустой словарь")
         result_data['user_selections'] = {}
     
-    logger.info(f"Returning filtered receipt data for message_id: {message_id}, user_id: {user_id}")
+    logger.info(f"Отправка данных чека для message_id: {message_id}, user_id: {user_id}")
     return jsonify(result_data)
 
 @app.route('/api/receipt/<int:message_id>', methods=['POST'])
@@ -238,14 +249,30 @@ def save_user_selection(message_id):
     logger.info(f"Сохранение выбора пользователя для message_id: {message_id}")
     
     try:
+        if not request.is_json:
+            logger.error(f"Получен не JSON-запрос. Content-Type: {request.content_type}")
+            return jsonify({"error": "Expected JSON data"}), 400
+            
         data = request.json
+        logger.info(f"Получены данные выбора: {str(data)[:200]}...")
+        
         user_id = data.get('user_id')
+        if not user_id:
+            logger.error("В запросе отсутствует обязательное поле 'user_id'")
+            return jsonify({"error": "Missing required field 'user_id'"}), 400
+            
         selected_items = data.get('selected_items')
+        if not isinstance(selected_items, dict):
+            logger.error(f"Поле 'selected_items' имеет неверный формат: {type(selected_items).__name__}")
+            return jsonify({"error": f"Field 'selected_items' should be a dictionary"}), 400
+        
+        # Преобразуем все ключи selected_items в строки для единообразия
+        selected_items_str_keys = {str(k): v for k, v in selected_items.items()}
         
         # Всегда преобразуем user_id в строку для использования в качестве ключа
         user_id_str = str(user_id)
         
-        logger.info(f"Сохранение выбора для пользователя: {user_id_str}")
+        logger.info(f"Сохранение выбора для пользователя: {user_id_str}, выбранные товары: {selected_items_str_keys}")
         
         if message_id not in receipt_data:
             receipt_data[message_id] = {
@@ -270,14 +297,15 @@ def save_user_selection(message_id):
             receipt_data[message_id]['metadata']['last_updated'] = time.time()
             
         # Используем строковый user_id в качестве ключа
-        receipt_data[message_id]['user_selections'][user_id_str] = selected_items
+        receipt_data[message_id]['user_selections'][user_id_str] = selected_items_str_keys
+        logger.info(f"Пользовательский выбор сохранен: {user_id_str} -> {selected_items_str_keys}")
         
         # Сохраняем данные в файл после изменения
         save_receipt_data_to_file()
         
         return jsonify({"success": True, "message": "Selection saved successfully"})
     except Exception as e:
-        logger.error(f"Ошибка при сохранении выбора: {e}")
+        logger.error(f"Ошибка при сохранении выбора: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 # Маршрут для очистки устаревших данных

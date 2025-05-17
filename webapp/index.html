@@ -427,8 +427,9 @@
             items = receiptData.items;
             userCounts = {};
             
+            // Инициализируем счетчики с строковыми ключами
             items.forEach((item, index) => {
-                userCounts[index] = 0;
+                userCounts[String(index)] = 0;
             });
             
             // Отображаем информацию о чеке
@@ -485,12 +486,19 @@
                 // Если есть выбор текущего пользователя, используем его
                 if (userSelections[userIdStr]) {
                     debugInfo.innerHTML += `Найден выбор для текущего пользователя: ${JSON.stringify(userSelections[userIdStr])}<br>`;
-                    userCounts = userSelections[userIdStr];
+                    // ВАЖНО: userCounts[index] = count, где index и count должны быть согласованы по типу
+                    const userSelection = userSelections[userIdStr];
+                    // Принудительно конвертируем все ключи в строки для единообразия
+                    items.forEach((item, index) => {
+                        const indexStr = String(index);
+                        userCounts[indexStr] = userSelection[indexStr] || 0;
+                    });
+                    debugInfo.innerHTML += `Инициализированы счетчики из сохраненного выбора: ${JSON.stringify(userCounts)}<br>`;
                 } else {
                     debugInfo.innerHTML += `Выбор для текущего пользователя не найден, инициализируем пустые счетчики<br>`;
-                    // Инициализируем пустые счетчики для всех товаров
+                    // Инициализируем пустые счетчики для всех товаров (с СТРОКОВЫМИ ключами)
                     items.forEach((item, index) => {
-                        userCounts[index] = 0;
+                        userCounts[String(index)] = 0;
                     });
                 }
                 
@@ -541,44 +549,50 @@
             const container = document.getElementById('items-container');
             container.innerHTML = '';
             
-            if (items.length === 0) {
-                container.innerHTML = '<div class="error">Нет данных для отображения</div>';
+            if (!items || items.length === 0) {
+                container.innerHTML = '<div class="error">Нет данных о товарах</div>';
                 return;
             }
             
             items.forEach((item, index) => {
+                // Преобразуем индекс в строку для использования в качестве ключа
+                const indexStr = String(index);
+                
                 const itemElement = document.createElement('div');
                 itemElement.className = 'item';
+                
+                // Получаем данные о товаре
+                const description = item.description || 'Без названия';
+                const quantity = item.quantity_from_openai || 1;
+                let unitPrice = 'N/A';
+                let displayPrice = 'N/A';
                 
                 // Определяем, является ли товар весовым
                 const isWeightItem = isWeightedItem(item);
                 
-                // Получаем правильную цену для отображения
-                let displayPrice = '0.00';
-                let unitPrice = '0.00';
-                
+                // Вычисляем цену для отображения
                 if (isWeightItem && item.total_amount_from_openai) {
-                    displayPrice = parseFloat(item.total_amount_from_openai).toFixed(2);
-                    unitPrice = displayPrice;
+                    unitPrice = parseFloat(item.total_amount_from_openai).toFixed(2);
+                    displayPrice = unitPrice;
                 } else if (item.unit_price_from_openai) {
                     unitPrice = parseFloat(item.unit_price_from_openai).toFixed(2);
-                    displayPrice = unitPrice;
-                } else if (item.total_amount_from_openai && item.quantity_from_openai > 0) {
+                    const total = (parseFloat(item.unit_price_from_openai) * quantity).toFixed(2);
+                    displayPrice = total;
+                } else if (item.total_amount_from_openai) {
+                    unitPrice = (parseFloat(item.total_amount_from_openai) / quantity).toFixed(2);
                     displayPrice = parseFloat(item.total_amount_from_openai).toFixed(2);
-                    unitPrice = (parseFloat(item.total_amount_from_openai) / item.quantity_from_openai).toFixed(2);
                 }
                 
-                const quantity = item.quantity_from_openai || 1;
-                
+                // Создаем HTML для элемента
                 itemElement.innerHTML = `
                     <div class="item-info">
-                        <div class="item-name">${item.description || 'Без названия'}</div>
+                        <div class="item-name">${description}</div>
                         <div class="item-price">${unitPrice} × ${quantity} шт. = ${displayPrice}</div>
                     </div>
                     <div class="counter">
-                        <button class="minus-btn" data-id="${index}">-</button>
-                        <span class="count" data-id="${index}">${userCounts[index] || 0}/${quantity}</span>
-                        <button class="plus-btn" data-id="${index}">+</button>
+                        <button class="minus-btn" data-id="${indexStr}">-</button>
+                        <span class="count" data-id="${indexStr}">${userCounts[indexStr] || 0}/${quantity}</span>
+                        <button class="plus-btn" data-id="${indexStr}">+</button>
                     </div>
                 `;
                 
@@ -588,7 +602,7 @@
             // Добавляем обработчики для кнопок
             document.querySelectorAll('.minus-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
-                    const id = parseInt(this.getAttribute('data-id'));
+                    const id = this.getAttribute('data-id');  // Получаем индекс как строку
                     if (userCounts[id] > 0) {
                         userCounts[id]--;
                         updateItemCount(id);
@@ -601,8 +615,8 @@
             
             document.querySelectorAll('.plus-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
-                    const id = parseInt(this.getAttribute('data-id'));
-                    const item = items[id];
+                    const id = this.getAttribute('data-id');  // Получаем индекс как строку
+                    const item = items[parseInt(id)];  // Преобразуем в число для доступа к элементу массива
                     const quantity = item.quantity_from_openai || 1;
                     
                     if (userCounts[id] < quantity) {
@@ -619,7 +633,7 @@
         // Функция для обновления счетчика товара
         function updateItemCount(id) {
             const countElement = document.querySelector(`.count[data-id="${id}"]`);
-            const item = items[id];
+            const item = items[parseInt(id)];  // Преобразуем в число для доступа к элементу массива
             const quantity = item.quantity_from_openai || 1;
             
             countElement.textContent = `${userCounts[id]}/${quantity}`;
@@ -630,9 +644,11 @@
             let subtotal = 0;
             
             // Считаем сумму выбранных товаров
-            items.forEach((item, index) => {
-                const count = userCounts[index] || 0;
+            for (const [indexStr, count] of Object.entries(userCounts)) {
                 if (count > 0) {
+                    const index = parseInt(indexStr);  // Преобразуем в число для доступа к элементу массива
+                    const item = items[index];
+                    
                     // Проверяем, является ли товар весовым или обычным
                     const isWeightItem = isWeightedItem(item);
                     
@@ -648,7 +664,7 @@
                         subtotal += unitPrice * count;
                     }
                 }
-            });
+            }
             
             // Записываем детальную информацию для отладки
             debugInfo.innerHTML += `Базовая сумма: ${subtotal.toFixed(2)}<br>`;
@@ -701,11 +717,12 @@
         async function confirmSelection() {
             const selectedItems = {};
             
-            items.forEach((item, index) => {
-                if (userCounts[index] > 0) {
-                    selectedItems[index] = userCounts[index];
+            // Собираем только ненулевые значения для отправки
+            for (const [indexStr, count] of Object.entries(userCounts)) {
+                if (count > 0) {
+                    selectedItems[indexStr] = count;
                 }
-            });
+            }
             
             // Если ничего не выбрано
             if (Object.keys(selectedItems).length === 0) {
@@ -828,11 +845,12 @@
                 // Подготавливаем данные о выбранных товарах
                 const selectedItems = {};
                 
-                items.forEach((item, index) => {
-                    if (userCounts[index] > 0) {
-                        selectedItems[index] = userCounts[index];
+                // Собираем только ненулевые значения для отправки
+                for (const [indexStr, count] of Object.entries(userCounts)) {
+                    if (count > 0) {
+                        selectedItems[indexStr] = count;
                     }
-                });
+                }
                 
                 debugInfo.innerHTML += `Автосохранение выбора: ${JSON.stringify(selectedItems)}<br>`;
                 
