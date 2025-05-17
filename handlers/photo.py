@@ -309,9 +309,12 @@ async def process_receipt_photo(message: Message, state: FSMContext):
             else:
                 webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно</i>" if WEBAPP_URL else ""
             
+            # Добавляем информацию о возможности разделения чека между участниками
+            share_info = "\n\n<b>👥 Этот чек могут разделить несколько участников!</b> Каждый может указать свои позиции независимо от других."
+            
             # Отправляем сообщение с распознанными позициями и кнопкой WebApp
             result_message = await processing_message.edit_text(
-                response_msg_text + webapp_info,
+                response_msg_text + webapp_info + share_info,
                 reply_markup=keyboard.as_markup(),
                 parse_mode="HTML"
             )

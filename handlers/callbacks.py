@@ -200,12 +200,33 @@ async def handle_confirm_selection(callback: CallbackQuery, state: FSMContext):
         # Добавляем итоговую сумму
         summary += f"\n\n<b>Итоговая сумма: {total_sum:.2f}</b>"
         
+        # Сохраняем результат пользователя в глобальное состояние
+        if "user_results" not in message_data:
+            message_data["user_results"] = {}
+        
+        message_data["user_results"][user_id] = {
+            "summary": summary,
+            "total_sum": float(total_sum),
+            "selected_items": {str(idx): count for idx, count in user_counts.items() if count > 0}
+        }
+        
         # Отправляем итоговое сообщение в чат
         await callback.message.answer(summary, parse_mode="HTML")
+        
+        # Создаем кнопку для просмотра всех результатов
+        keyboard = InlineKeyboardBuilder()
+        keyboard.row(InlineKeyboardButton(text="👥 Посмотреть итоги всех участников", callback_data="show_all_results"))
+        
+        # Отправляем дополнительное сообщение с кнопкой просмотра всех результатов
+        await callback.message.answer(
+            "✅ Ваш выбор подтвержден и сохранен! Теперь каждый участник может сделать свой выбор независимо.",
+            reply_markup=keyboard.as_markup()
+        )
+        
         await callback.answer("✅ Ваш выбор подтвержден!")
         
-        # Очищаем состояние FSM
-        await state.clear()
+        # Не очищаем состояние FSM, чтобы другие пользователи могли сделать свой выбор
+        # await state.clear()
         
     except Exception as e:
         logger.error(f"Ошибка при подтверждении выбора: {e}", exc_info=True)
@@ -501,10 +522,13 @@ async def handle_back_to_receipt(callback: CallbackQuery, state: FSMContext):
                 webapp_info = "\n\n<i>💡 В групповом чате нажмите на кнопку ниже, чтобы перейти в личный чат с ботом и открыть мини-приложение</i>"
         else:
             webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно</i>" if WEBAPP_URL else ""
+            
+        # Добавляем информацию о возможности разделения чека между участниками
+        share_info = "\n\n<b>👥 Этот чек могут разделить несколько участников!</b> Каждый может указать свои позиции независимо от других."
         
         # Отправляем сообщение с распознанными позициями и кнопкой WebApp
         await callback.message.edit_text(
-            response_msg_text + webapp_info,
+            response_msg_text + webapp_info + share_info,
             reply_markup=keyboard.as_markup(),
             parse_mode="HTML"
         )
@@ -513,4 +537,62 @@ async def handle_back_to_receipt(callback: CallbackQuery, state: FSMContext):
         
     except Exception as e:
         logger.error(f"Ошибка при возврате к чеку: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка. Пожалуйста, попробуйте еще раз.")
+
+@router.callback_query(F.data == "show_all_results")
+async def handle_show_all_results(callback: CallbackQuery):
+    """Показывает итоги всех участников"""
+    try:
+        # Получаем message_id сообщения с клавиатурой
+        message_id = callback.message.message_id
+        
+        # Ищем данные для чека в состояниях сообщений
+        found_data = None
+        for msg_id, data in message_states.items():
+            if "user_results" in data:
+                # Используем либо запрошенный message_id, либо в крайнем случае любой найденный
+                if msg_id == message_id or found_data is None:
+                    found_data = (msg_id, data)
+                    if msg_id == message_id:
+                        break
+        
+        if found_data:
+            msg_id, message_data = found_data
+            user_results = message_data.get("user_results", {})
+            
+            if not user_results:
+                await callback.answer("Ни один из участников еще не сделал свой выбор", show_alert=True)
+                return
+            
+            # Формируем сообщение с итогами всех участников
+            all_results = "<b>📊 Итоги всех участников:</b>\n\n"
+            
+            total_group_sum = Decimal("0.00")
+            for user_id, result in user_results.items():
+                # Получаем имя пользователя
+                try:
+                    user = await callback.bot.get_chat_member(callback.message.chat.id, int(user_id))
+                    user_name = user.user.username or f"{user.user.first_name}"
+                except Exception:
+                    user_name = f"User {user_id}"
+                
+                # Получаем сумму пользователя
+                user_sum = result.get("total_sum", 0)
+                total_group_sum += Decimal(str(user_sum))
+                
+                # Добавляем в итог
+                all_results += f"@{user_name}: {user_sum:.2f}\n"
+            
+            # Добавляем общую сумму группы
+            all_results += f"\n<b>💰 Общая сумма группы: {total_group_sum:.2f}</b>"
+            
+            # Отправляем сообщение с итогами
+            await callback.message.answer(all_results, parse_mode="HTML")
+            await callback.answer("✅ Итоги всех участников")
+            
+        else:
+            await callback.answer("Данные о результатах не найдены", show_alert=True)
+            
+    except Exception as e:
+        logger.error(f"Ошибка при отображении итогов всех участников: {e}", exc_info=True)
         await callback.answer("❌ Произошла ошибка. Пожалуйста, попробуйте еще раз.") 
