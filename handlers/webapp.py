@@ -1,7 +1,7 @@
 import json
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, Update
+from aiogram.types import Message, Update, InlineKeyboardButton, InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from handlers.photo import ReceiptStates
 from handlers.callbacks import handle_confirm_selection
@@ -161,9 +161,11 @@ async def handle_webapp_data(message: Message, state: FSMContext):
         
         # Считаем сумму выбранных товаров
         total_sum = Decimal("0.00")
+        
+        # Формируем список выбранных товаров и считаем сумму
         for idx_str, count in selected_items.items():
-            idx = int(idx_str)
-            if idx < len(items) and count > 0:
+            if count > 0:
+                idx = int(idx_str)
                 item = items[idx]
                 description = item.get("description", "N/A")
                 
@@ -191,48 +193,66 @@ async def handle_webapp_data(message: Message, state: FSMContext):
                 else:
                     continue
                 
-                # Добавляем позицию в итог с форматированной ценой за единицу
+                # Применяем скидки на товар, если есть
+                discount_info = ""
+                if item.get("discount_percent") is not None:
+                    discount_amount = (item_total * Decimal(str(item["discount_percent"])) / Decimal("100")).quantize(Decimal("0.01"))
+                    item_total -= discount_amount
+                    discount_info = f" (скидка {item['discount_percent']}%)"
+                elif item.get("discount_amount") is not None:
+                    if openai_quantity > 0:
+                        item_discount = (Decimal(str(item["discount_amount"])) * Decimal(count) / Decimal(str(openai_quantity))).quantize(Decimal("0.01"))
+                        item_total -= item_discount
+                        discount_info = f" (скидка {item_discount:.2f})"
+                
+                # Добавляем позицию в итог
                 total_sum += item_total
-                unit_price_str = ""
-                if unit_price_openai:
-                    unit_price_str = f" (цена: {Decimal(str(unit_price_openai)):.2f})"
-                    
-                summary += f"• {description}: {count} шт.{unit_price_str} = <b>{item_total:.2f}</b>\n"
-        
-        # Добавляем разделитель
-        summary += "\n<b>📊 Расчет итоговой суммы:</b>\n"
-        summary += f"• Сумма выбранных позиций: <b>{total_sum:.2f}</b>\n"
-        
-        # Применяем скидку
-        discount_applied = False
-        if actual_discount_percent and actual_discount_percent > 0:
-            discount_amount = (total_sum * Decimal(str(actual_discount_percent)) / Decimal("100")).quantize(Decimal("0.01"))
-            total_sum -= discount_amount
-            summary += f"• Скидка ({actual_discount_percent}%): <b>-{discount_amount:.2f}</b>\n"
-            discount_applied = True
-        elif total_discount_amount is not None and total_check_sum > 0:
-            user_discount = (Decimal(str(total_discount_amount)) * total_sum / total_check_sum).quantize(Decimal("0.01"))
-            total_sum -= user_discount
-            summary += f"• Скидка: <b>-{user_discount:.2f}</b>\n"
-            discount_applied = True
+                summary += f"- {description}: {count} шт. = {item_total:.2f}{discount_info}\n"
         
         # Добавляем информацию о сервисном сборе
         if service_charge_percent is not None:
             service_amount = (total_sum * Decimal(str(service_charge_percent)) / Decimal("100")).quantize(Decimal("0.01"))
             total_sum += service_amount
-            summary += f"• Плата за обслуживание ({service_charge_percent}%): <b>+{service_amount:.2f}</b>\n"
+            summary += f"\n<b>Плата за обслуживание ({service_charge_percent}%): {service_amount:.2f}</b>"
+        
+        # Добавляем информацию об общей скидке
+        if actual_discount_percent is not None and actual_discount_percent > 0:
+            discount_amount = (total_sum * Decimal(str(actual_discount_percent)) / Decimal("100")).quantize(Decimal("0.01"))
+            total_sum -= discount_amount
+            summary += f"\n<b>Скидка ({actual_discount_percent}%): -{discount_amount:.2f}</b>"
+        elif total_discount_amount is not None and total_check_sum > 0:
+            user_discount = (Decimal(str(total_discount_amount)) * total_sum / total_check_sum).quantize(Decimal("0.01"))
+            total_sum -= user_discount
+            summary += f"\n<b>Скидка: -{user_discount:.2f}</b>"
         
         # Добавляем итоговую сумму
-        summary += f"\n<b>💰 Итоговая сумма к оплате: {total_sum:.2f}</b>"
+        summary += f"\n\n<b>Итоговая сумма: {total_sum:.2f}</b>"
         
-        # Добавляем полезную информацию
-        summary += "\n\n<i>Спасибо за использование бота СплитЧек! Надеемся, это было полезно.</i>"
+        # Сохраняем результат пользователя в глобальное состояние
+        if "user_results" not in message_data:
+            message_data["user_results"] = {}
+        
+        message_data["user_results"][user_id] = {
+            "summary": summary,
+            "total_sum": float(total_sum),
+            "selected_items": {str(idx): count for idx, count in selected_items.items() if count > 0}
+        }
         
         # Отправляем итоговое сообщение в чат
         await message.answer(summary, parse_mode="HTML")
         
-        # Очищаем состояние FSM
-        await state.clear()
+        # Создаем кнопку для просмотра всех результатов
+        keyboard = InlineKeyboardBuilder()
+        keyboard.row(InlineKeyboardButton(text="👥 Посмотреть итоги всех участников", callback_data="show_all_results"))
+        
+        # Отправляем дополнительное сообщение с кнопкой просмотра всех результатов
+        await message.answer(
+            "✅ Ваш выбор подтвержден и сохранен! Теперь каждый участник может сделать свой выбор независимо.",
+            reply_markup=keyboard.as_markup()
+        )
+        
+        # Не очищаем состояние FSM, чтобы другие пользователи могли сделать свой выбор
+        # await state.clear()
         
     except json.JSONDecodeError as e:
         logger.error(f"Ошибка при парсинге JSON из веб-приложения: {e}")
