@@ -13,6 +13,10 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не найден в .env файле!")
 
+# Bot username for deep linking
+BOT_USERNAME = os.getenv("BOT_USERNAME", "Splitix_bot")
+logger.info(f"Используется BOT_USERNAME: {BOT_USERNAME}")
+
 # OpenAI settings
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:

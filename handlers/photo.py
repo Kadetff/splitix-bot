@@ -10,7 +10,7 @@ from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from services.openai_service import process_receipt_with_openai
-from utils.keyboards import create_items_keyboard_with_counters
+from utils.keyboards import create_receipt_keyboard
 from typing import Dict, Any
 from config.settings import WEBAPP_URL
 

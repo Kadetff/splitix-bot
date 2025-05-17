@@ -5,10 +5,11 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, WebAppInfo
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from utils.keyboards import create_items_keyboard_with_counters
+from utils.keyboards import create_receipt_keyboard
 from handlers.photo import ReceiptStates
 from config.settings import WEBAPP_URL
 from typing import Dict, Any
+from aiogram.filters import Command
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -75,7 +76,7 @@ async def handle_item_increment(callback: CallbackQuery, state: FSMContext):
         
         # Обновляем клавиатуру для ТЕКУЩЕГО пользователя
         try:
-            keyboard = create_items_keyboard_with_counters(
+            keyboard = create_receipt_keyboard(
                 items, 
                 user_counts, 
                 chat_type=callback.message.chat.type,
@@ -283,7 +284,7 @@ async def handle_show_my_summary(callback: CallbackQuery, state: FSMContext):
         summary_text = f"**{user_mention}, ваш текущий выбор:**\\n\\n"
         
         # Создаем клавиатуру с текущим выбором
-        keyboard = create_items_keyboard_with_counters(items, user_counts, view_mode="my_summary_display", chat_type=callback.message.chat.type)
+        keyboard = create_receipt_keyboard(items, user_counts, view_mode="my_summary_display", chat_type=callback.message.chat.type)
         
         # Обновляем сообщение
         await callback.message.edit_text(summary_text, reply_markup=keyboard)
@@ -323,7 +324,7 @@ async def handle_show_total_summary(callback: CallbackQuery, state: FSMContext):
         summary_text = "**Общий итог по чеку (выбрано всеми / количество в чеке):**\\n\\n"
         
         # Создаем клавиатуру с общим итогом
-        keyboard = create_items_keyboard_with_counters(items, aggregated_counts, view_mode="total_summary_display", chat_type=callback.message.chat.type)
+        keyboard = create_receipt_keyboard(items, aggregated_counts, view_mode="total_summary_display", chat_type=callback.message.chat.type)
         
         # Обновляем сообщение
         await callback.message.edit_text(summary_text, reply_markup=keyboard)
@@ -355,7 +356,7 @@ async def handle_back_to_selection(callback: CallbackQuery, state: FSMContext):
         user_counts = user_selections.get(user_id, {})
         
         # Создаем клавиатуру выбора
-        keyboard = create_items_keyboard_with_counters(items, user_counts, chat_type=callback.message.chat.type)
+        keyboard = create_receipt_keyboard(items, user_counts, chat_type=callback.message.chat.type)
         
         # Обновляем сообщение
         await callback.message.edit_text(
@@ -733,4 +734,36 @@ async def handle_show_all_results(callback: CallbackQuery):
             
     except Exception as e:
         logger.error(f"Ошибка при отображении итогов всех участников: {e}", exc_info=True)
-        await callback.answer("❌ Произошла ошибка. Пожалуйста, попробуйте еще раз.") 
+        await callback.answer("❌ Произошла ошибка. Пожалуйста, попробуйте еще раз.")
+
+@router.callback_query(F.data.startswith("show_intermediate_summary:"))
+async def handle_intermediate_summary(callback: CallbackQuery):
+    """Показывает промежуточный итог распределения позиций в групповом чате."""
+    try:
+        message_id = int(callback.data.split(":")[1])
+        # TODO: Получить данные о текущем распределении позиций
+        # TODO: Сформировать сообщение с промежуточным итогом
+        await callback.answer("Промежуточный итог будет показан в следующем сообщении")
+    except Exception as e:
+        logger.error(f"Ошибка при показе промежуточного итога: {e}", exc_info=True)
+        await callback.answer("Произошла ошибка при формировании итога")
+
+@router.callback_query(F.data == "show_instructions")
+async def handle_instructions(callback: CallbackQuery):
+    """Показывает инструкцию по использованию бота."""
+    instructions = """
+🤖 *Как пользоваться ботом*
+
+1. Отправьте фото чека или используйте команду `/split` в групповом чате
+2. Дождитесь обработки чека
+3. Нажмите кнопку "🌐 Открыть в веб-интерфейсе"
+4. В открывшемся окне отметьте свои позиции
+5. Нажмите "Подтвердить" для завершения выбора
+
+*В групповом чате:*
+- Каждый участник отмечает свои позиции в личном чате с ботом
+- Используйте кнопку "📊 Промежуточный итог" для проверки распределения
+- После распределения всех позиций бот рассчитает взаиморасчеты
+"""
+    await callback.message.answer(instructions, parse_mode="Markdown")
+    await callback.answer() 
