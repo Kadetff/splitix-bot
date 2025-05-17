@@ -114,13 +114,17 @@ async def handle_webapp_data(message: Message, state: FSMContext):
         
         if message_id not in message_states:
             # Попробуем преобразовать ключи message_states в строки для сравнения
+            logger.debug(f"message_id {message_id} не найден напрямую, пробуем найти ключ по строковому представлению")
             str_keys = {str(k): k for k in message_states.keys()}
+            logger.debug(f"Строковые ключи message_states: {str_keys}")
+            
             if str(message_id) in str_keys:
                 actual_key = str_keys[str(message_id)]
                 logger.debug(f"Найден ключ {actual_key} по строковому представлению {message_id}")
                 message_id = actual_key
             else:
                 logger.warning(f"Не найдено состояние для message_id: {message_id}")
+                logger.warning(f"Доступные ключи: {list(message_states.keys())}")
                 await message.answer("❌ Не удалось обработать выбор из веб-приложения. Попробуйте еще раз.")
                 return
         
@@ -136,7 +140,8 @@ async def handle_webapp_data(message: Message, state: FSMContext):
             message_data['user_selections'] = {}
         
         user_selections = message_data['user_selections']
-        user_selections[user_id] = {int(idx): count for idx, count in selected_items.items()}
+        # Преобразуем строковые ключи в числа и убедимся, что значения тоже числа
+        user_selections[user_id] = {int(idx): int(count) for idx, count in selected_items.items()}
         
         # Формируем сообщение с итогами
         user_mention = f"@{message.from_user.username}" if message.from_user.username else f"{message.from_user.first_name}"

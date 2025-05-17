@@ -38,45 +38,91 @@ def load_receipt_data():
         
         # Проверяем существование файла с данными
         if os.path.exists(data_file):
+            logger.info(f"Загрузка данных из файла: {data_file}")
+            
             with open(data_file, 'r', encoding='utf-8') as f:
-                loaded_data = json.load(f)
-                
-                # Проверяем структуру данных и добавляем метаданные, если их нет
-                clean_data = {}
-                for msg_id, msg_data in loaded_data.items():
-                    # Все ключи должны быть строками для единообразия
-                    str_msg_id = str(msg_id)
+                try:
+                    loaded_data = json.load(f)
+                    logger.info(f"Данные успешно загружены из файла, размер: {len(loaded_data)} записей")
+                    logger.info(f"Типы ключей в исходных данных: {[type(k).__name__ for k in loaded_data.keys()]}")
                     
-                    # Если есть поле 'created_at', используем его, иначе добавляем текущее время
-                    if isinstance(msg_data, dict):
-                        if 'metadata' not in msg_data:
-                            msg_data['metadata'] = {
-                                'created_at': time.time(),  # Текущее время в секундах
-                                'last_updated': time.time()
-                            }
+                    # Проверяем структуру данных и добавляем метаданные, если их нет
+                    clean_data = {}
+                    for msg_id, msg_data in loaded_data.items():
+                        # Все ключи должны быть строками для единообразия
+                        str_msg_id = str(msg_id)
+                        logger.debug(f"Обработка записи для message_id: {msg_id} -> {str_msg_id}")
                         
-                        # Проверяем и конвертируем user_selections для гарантии строковых ключей
-                        if 'user_selections' in msg_data:
-                            fixed_user_selections = {}
-                            for user_id, selections in msg_data['user_selections'].items():
-                                # Преобразуем user_id в строку
-                                user_id_str = str(user_id)
-                                # Преобразуем ключи выбора товаров в строки
-                                fixed_selections = {str(k): v for k, v in selections.items()}
-                                fixed_user_selections[user_id_str] = fixed_selections
-                            msg_data['user_selections'] = fixed_user_selections
+                        # Если есть поле 'created_at', используем его, иначе добавляем текущее время
+                        if isinstance(msg_data, dict):
+                            if 'metadata' not in msg_data:
+                                logger.debug(f"Добавляем метаданные для message_id: {str_msg_id}")
+                                msg_data['metadata'] = {
+                                    'created_at': time.time(),  # Текущее время в секундах
+                                    'last_updated': time.time()
+                                }
                             
-                        clean_data[str_msg_id] = msg_data
-                
-                receipt_data = clean_data
-                logger.info(f"Загружены данные из {data_file}, количество записей: {len(receipt_data)}")
-                
-                # Очищаем устаревшие данные
-                cleanup_expired_data()
+                            # Проверяем и конвертируем user_selections для гарантии строковых ключей
+                            if 'user_selections' in msg_data:
+                                logger.debug(f"Обработка user_selections для message_id: {str_msg_id}")
+                                
+                                # Логируем структуру user_selections до обработки
+                                logger.debug(f"user_selections до обработки: {msg_data['user_selections']}")
+                                logger.debug(f"Типы ключей user_selections: {[type(k).__name__ for k in msg_data['user_selections'].keys()]}")
+                                
+                                fixed_user_selections = {}
+                                for user_id, selections in msg_data['user_selections'].items():
+                                    # Преобразуем user_id в строку
+                                    user_id_str = str(user_id)
+                                    logger.debug(f"Обработка selections для user_id: {user_id} -> {user_id_str}")
+                                    
+                                    # Преобразуем ключи выбора товаров в строки, а значения в целые числа
+                                    if selections:
+                                        # Логируем типы ключей и значений до обработки
+                                        logger.debug(f"Типы ключей в selections: {[type(k).__name__ for k in selections.keys()]}")
+                                        logger.debug(f"Типы значений в selections: {[type(v).__name__ for v in selections.values()]}")
+                                        
+                                        fixed_selections = {}
+                                        for k, v in selections.items():
+                                            str_k = str(k)
+                                            try:
+                                                int_v = int(v)
+                                                fixed_selections[str_k] = int_v
+                                            except (ValueError, TypeError) as e:
+                                                logger.error(f"Ошибка при преобразовании значения '{v}' типа {type(v).__name__} в int: {e}")
+                                                # В случае ошибки используем значение как есть
+                                                fixed_selections[str_k] = v
+                                        
+                                        fixed_user_selections[user_id_str] = fixed_selections
+                                        logger.debug(f"Обработанные selections для user_id {user_id_str}: {fixed_selections}")
+                                    else:
+                                        logger.debug(f"Пустые selections для user_id {user_id_str}")
+                                        fixed_user_selections[user_id_str] = {}
+                                
+                                # Заменяем user_selections на исправленную версию
+                                msg_data['user_selections'] = fixed_user_selections
+                                logger.debug(f"user_selections после обработки: {fixed_user_selections}")
+                                
+                            clean_data[str_msg_id] = msg_data
+                    
+                    receipt_data = clean_data
+                    logger.info(f"Загружены данные из {data_file}, количество записей: {len(receipt_data)}")
+                    logger.info(f"Ключи receipt_data после загрузки: {list(receipt_data.keys())}")
+                    
+                    # Логируем состояние user_selections для отладки
+                    for msg_id, msg_data in receipt_data.items():
+                        if 'user_selections' in msg_data:
+                            logger.info(f"user_selections для message_id {msg_id}: {msg_data['user_selections']}")
+                    
+                    # Очищаем устаревшие данные
+                    cleanup_expired_data()
+                except json.JSONDecodeError as e:
+                    logger.error(f"Ошибка при парсинге JSON из файла {data_file}: {e}")
+                    receipt_data = {}
         else:
             logger.info(f"Файл данных {data_file} не существует, используем пустое хранилище.")
     except Exception as e:
-        logger.error(f"Ошибка при загрузке данных из файла: {e}")
+        logger.error(f"Ошибка при загрузке данных из файла: {e}", exc_info=True)
         receipt_data = {}
 
 # Функция для очистки устаревших данных
@@ -112,13 +158,66 @@ def save_receipt_data_to_file():
         # Проверяем существование директории data
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
+            logger.info(f"Создана директория для данных: {data_dir}")
+        
+        # Логируем информацию о структуре данных перед сохранением
+        logger.info(f"Сохранение данных в файл {data_file}, количество записей: {len(receipt_data)}")
+        logger.info(f"Ключи receipt_data: {list(receipt_data.keys())}")
+        
+        # Проверяем типы ключей
+        if any(not isinstance(k, str) for k in receipt_data.keys()):
+            logger.warning("Обнаружены не строковые ключи в receipt_data, преобразуем их в строки")
+            # Преобразуем все ключи в строки
+            receipt_data_fixed = {str(k): v for k, v in receipt_data.items()}
+            # Заменяем оригинальные данные
+            receipt_data.clear()
+            receipt_data.update(receipt_data_fixed)
+            logger.info("Ключи receipt_data преобразованы в строки")
+        
+        # Проверяем типы значений в user_selections
+        for msg_id, msg_data in receipt_data.items():
+            if 'user_selections' in msg_data:
+                user_selections = msg_data['user_selections']
+                # Проверяем ключи user_selections
+                if any(not isinstance(k, str) for k in user_selections.keys()):
+                    logger.warning(f"Обнаружены не строковые ключи в user_selections для message_id {msg_id}")
+                    # Преобразуем все ключи в строки
+                    user_selections_fixed = {str(k): v for k, v in user_selections.items()}
+                    msg_data['user_selections'] = user_selections_fixed
+                
+                # Проверяем значения в каждом user_selection
+                for user_id, selections in list(user_selections.items()):
+                    # Проверяем ключи selections
+                    if any(not isinstance(k, str) for k in selections.keys()):
+                        logger.warning(f"Обнаружены не строковые ключи в selections для user_id {user_id}")
+                        # Преобразуем все ключи в строки
+                        selections_fixed = {str(k): v for k, v in selections.items()}
+                        user_selections[user_id] = selections_fixed
+                    
+                    # Проверяем значения selections
+                    if any(not isinstance(v, int) for v in selections.values()):
+                        logger.warning(f"Обнаружены не целочисленные значения в selections для user_id {user_id}")
+                        # Преобразуем все значения в числа
+                        selections_fixed = {}
+                        for k, v in selections.items():
+                            try:
+                                selections_fixed[k] = int(v)
+                            except (ValueError, TypeError):
+                                logger.error(f"Не удалось преобразовать значение '{v}' в int, используем 0")
+                                selections_fixed[k] = 0
+                        user_selections[user_id] = selections_fixed
         
         # Сохраняем данные в файл
         with open(data_file, 'w', encoding='utf-8') as f:
             json.dump(receipt_data, f, ensure_ascii=False, indent=2)
-            logger.info(f"Данные сохранены в файл {data_file}, количество записей: {len(receipt_data)}")
+            logger.info(f"Данные успешно сохранены в файл {data_file}, количество записей: {len(receipt_data)}")
+            
+            # Проверяем структуру сохраненных данных для отладки
+            for msg_id, msg_data in receipt_data.items():
+                if 'user_selections' in msg_data:
+                    logger.debug(f"Сохранены user_selections для message_id {msg_id}: {msg_data['user_selections']}")
     except Exception as e:
-        logger.error(f"Ошибка при сохранении данных в файл: {e}")
+        logger.error(f"Ошибка при сохранении данных в файл: {e}", exc_info=True)
 
 # Загружаем данные при запуске
 load_receipt_data()
@@ -160,12 +259,17 @@ def get_receipt_data(message_id):
     
     # Преобразуем message_id в строку для единообразия
     message_id_str = str(message_id)
+    logger.info(f"Преобразованный message_id в строку: {message_id_str}")
     
     # Получаем user_id из query параметров, если есть
     user_id = request.args.get('user_id')
     logger.info(f"Запрос от user_id: {user_id}")
     
+    # Детальное логирование структуры хранилища данных
+    logger.info(f"Доступные ключи в receipt_data: {list(receipt_data.keys())}")
+    
     if message_id_str not in receipt_data:
+        logger.warning(f"message_id_str {message_id_str} не найден в receipt_data")
         # Для тестирования возвращаем тестовые данные только если включен режим отладки
         if app.debug:
             logger.info(f"Receipt not found, returning test data for message_id: {message_id} (debug mode)")
@@ -189,6 +293,7 @@ def get_receipt_data(message_id):
     
     # Создаем копию данных, чтобы не изменять оригинал
     result_data = receipt_data[message_id_str].copy()
+    logger.info(f"Найдены данные для message_id_str {message_id_str}, ключи: {list(result_data.keys())}")
     
     # Удаляем служебные метаданные из ответа
     if 'metadata' in result_data:
@@ -198,9 +303,11 @@ def get_receipt_data(message_id):
     if 'user_selections' in result_data and user_id:
         # Преобразуем user_id в строку для сравнения
         user_id_str = str(user_id)
+        logger.info(f"Преобразованный user_id в строку: {user_id_str}")
         
         # Логируем состояние user_selections для отладки
         logger.info(f"User selections в хранилище: {result_data['user_selections']}")
+        logger.info(f"Доступные ключи в user_selections: {list(result_data['user_selections'].keys())}")
         
         # Создаем новый словарь только с данными текущего пользователя
         filtered_selections = {}
@@ -208,7 +315,11 @@ def get_receipt_data(message_id):
             # Получаем выборы текущего пользователя
             user_selections = result_data['user_selections'][user_id_str]
             logger.info(f"Найдены выборы для пользователя {user_id_str}: {user_selections}")
-            filtered_selections[user_id_str] = user_selections
+            
+            # Убедимся, что все ключи - строки, а все значения - числа
+            normalized_selections = {str(k): int(v) for k, v in user_selections.items()}
+            filtered_selections[user_id_str] = normalized_selections
+            logger.info(f"Нормализованные выборы: {normalized_selections}")
         else:
             logger.info(f"Выборы для пользователя {user_id_str} не найдены")
         
@@ -219,6 +330,7 @@ def get_receipt_data(message_id):
         result_data['user_selections'] = {}
     
     logger.info(f"Отправка данных чека для message_id: {message_id}, user_id: {user_id}")
+    logger.info(f"Итоговые данные: {json.dumps(result_data)[:500]}...")
     return jsonify(result_data)
 
 @app.route('/api/receipt/<int:message_id>', methods=['POST'])
@@ -272,6 +384,7 @@ def save_user_selection(message_id):
     
     # Преобразуем message_id в строку для единообразия
     message_id_str = str(message_id)
+    logger.info(f"Преобразованный message_id в строку: {message_id_str}")
     
     try:
         if not request.is_json:
@@ -279,7 +392,7 @@ def save_user_selection(message_id):
             return jsonify({"error": "Expected JSON data"}), 400
             
         data = request.json
-        logger.info(f"Получены данные выбора: {str(data)[:200]}...")
+        logger.info(f"Получены данные выбора: {json.dumps(data)}")
         
         user_id = data.get('user_id')
         if not user_id:
@@ -291,8 +404,8 @@ def save_user_selection(message_id):
             logger.error(f"Поле 'selected_items' имеет неверный формат: {type(selected_items).__name__}")
             return jsonify({"error": f"Field 'selected_items' should be a dictionary"}), 400
         
-        # Преобразуем все ключи selected_items в строки для единообразия
-        selected_items_str_keys = {str(k): v for k, v in selected_items.items()}
+        # Преобразуем все ключи selected_items в строки и все значения в числа для единообразия
+        selected_items_str_keys = {str(k): int(v) for k, v in selected_items.items()}
         
         # Всегда преобразуем user_id в строку для использования в качестве ключа
         user_id_str = str(user_id)
@@ -300,6 +413,7 @@ def save_user_selection(message_id):
         logger.info(f"Сохранение выбора для пользователя: {user_id_str}, выбранные товары: {selected_items_str_keys}")
         
         if message_id_str not in receipt_data:
+            logger.info(f"Создание новой записи для message_id: {message_id_str}")
             receipt_data[message_id_str] = {
                 "items": [], 
                 "user_selections": {},
@@ -310,6 +424,7 @@ def save_user_selection(message_id):
             }
         
         if 'user_selections' not in receipt_data[message_id_str]:
+            logger.info(f"Инициализация user_selections для message_id: {message_id_str}")
             receipt_data[message_id_str]['user_selections'] = {}
         
         # Обновляем время последнего обновления
@@ -327,6 +442,9 @@ def save_user_selection(message_id):
         
         # Сохраняем данные в файл после изменения
         save_receipt_data_to_file()
+        
+        # Выводим структуру после сохранения
+        logger.info(f"Структура user_selections после сохранения: {receipt_data[message_id_str]['user_selections']}")
         
         return jsonify({"success": True, "message": "Selection saved successfully"})
     except Exception as e:
@@ -455,6 +573,44 @@ def test_selection_persistence():
     except Exception as e:
         logger.error(f"Ошибка при тестировании: {e}", exc_info=True)
         return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+
+@app.route('/test_key_types')
+def test_key_types():
+    """Эндпоинт для проверки типов ключей в хранилище данных."""
+    try:
+        result = {
+            "receipt_data_keys": {k: type(k).__name__ for k in receipt_data.keys()},
+            "user_selections": {}
+        }
+        
+        # Проверяем типы ключей и значений в user_selections
+        for msg_id, msg_data in receipt_data.items():
+            if 'user_selections' in msg_data:
+                # Получаем информацию о типах ключей в user_selections
+                user_selections = msg_data['user_selections']
+                user_keys_info = {user_id: type(user_id).__name__ for user_id in user_selections.keys()}
+                
+                # Получаем информацию о типах ключей и значений в selections
+                selections_info = {}
+                for user_id, selections in user_selections.items():
+                    if selections:
+                        keys_info = {k: type(k).__name__ for k in selections.keys()}
+                        values_info = {k: type(v).__name__ for k, v in selections.items()}
+                        selections_info[user_id] = {
+                            "keys_types": keys_info,
+                            "values_types": values_info,
+                            "data": selections
+                        }
+                
+                result["user_selections"][msg_id] = {
+                    "user_keys_types": user_keys_info,
+                    "selections": selections_info
+                }
+        
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Ошибка при проверке типов ключей: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8080) 
