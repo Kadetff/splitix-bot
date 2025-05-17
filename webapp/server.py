@@ -44,6 +44,9 @@ def load_receipt_data():
                 # Проверяем структуру данных и добавляем метаданные, если их нет
                 clean_data = {}
                 for msg_id, msg_data in loaded_data.items():
+                    # Все ключи должны быть строками для единообразия
+                    str_msg_id = str(msg_id)
+                    
                     # Если есть поле 'created_at', используем его, иначе добавляем текущее время
                     if isinstance(msg_data, dict):
                         if 'metadata' not in msg_data:
@@ -51,7 +54,19 @@ def load_receipt_data():
                                 'created_at': time.time(),  # Текущее время в секундах
                                 'last_updated': time.time()
                             }
-                        clean_data[msg_id] = msg_data
+                        
+                        # Проверяем и конвертируем user_selections для гарантии строковых ключей
+                        if 'user_selections' in msg_data:
+                            fixed_user_selections = {}
+                            for user_id, selections in msg_data['user_selections'].items():
+                                # Преобразуем user_id в строку
+                                user_id_str = str(user_id)
+                                # Преобразуем ключи выбора товаров в строки
+                                fixed_selections = {str(k): v for k, v in selections.items()}
+                                fixed_user_selections[user_id_str] = fixed_selections
+                            msg_data['user_selections'] = fixed_user_selections
+                            
+                        clean_data[str_msg_id] = msg_data
                 
                 receipt_data = clean_data
                 logger.info(f"Загружены данные из {data_file}, количество записей: {len(receipt_data)}")
@@ -143,11 +158,14 @@ def get_receipt_data(message_id):
     """Получение данных чека по ID сообщения"""
     logger.info(f"Запрос данных чека для message_id: {message_id}")
     
+    # Преобразуем message_id в строку для единообразия
+    message_id_str = str(message_id)
+    
     # Получаем user_id из query параметров, если есть
     user_id = request.args.get('user_id')
     logger.info(f"Запрос от user_id: {user_id}")
     
-    if message_id not in receipt_data:
+    if message_id_str not in receipt_data:
         # Для тестирования возвращаем тестовые данные только если включен режим отладки
         if app.debug:
             logger.info(f"Receipt not found, returning test data for message_id: {message_id} (debug mode)")
@@ -170,7 +188,7 @@ def get_receipt_data(message_id):
             return jsonify({"error": "Receipt not found"}), 404
     
     # Создаем копию данных, чтобы не изменять оригинал
-    result_data = receipt_data[message_id].copy()
+    result_data = receipt_data[message_id_str].copy()
     
     # Удаляем служебные метаданные из ответа
     if 'metadata' in result_data:
@@ -208,6 +226,9 @@ def save_receipt_data(message_id):
     """Сохранение данных чека"""
     logger.info(f"Сохранение данных чека для message_id: {message_id}")
     
+    # Преобразуем message_id в строку для единообразия
+    message_id_str = str(message_id)
+    
     try:
         if not request.is_json:
             logger.error(f"Получен не JSON-запрос. Content-Type: {request.content_type}")
@@ -234,7 +255,7 @@ def save_receipt_data(message_id):
         else:
             data['metadata']['last_updated'] = time.time()
             
-        receipt_data[message_id] = data
+        receipt_data[message_id_str] = data
         logger.info(f"Данные сохранены для message_id: {message_id}")
         
         # Сохраняем данные в файл после изменения
@@ -248,6 +269,9 @@ def save_receipt_data(message_id):
 def save_user_selection(message_id):
     """Сохранение выбора пользователя"""
     logger.info(f"Сохранение выбора пользователя для message_id: {message_id}")
+    
+    # Преобразуем message_id в строку для единообразия
+    message_id_str = str(message_id)
     
     try:
         if not request.is_json:
@@ -275,8 +299,8 @@ def save_user_selection(message_id):
         
         logger.info(f"Сохранение выбора для пользователя: {user_id_str}, выбранные товары: {selected_items_str_keys}")
         
-        if message_id not in receipt_data:
-            receipt_data[message_id] = {
+        if message_id_str not in receipt_data:
+            receipt_data[message_id_str] = {
                 "items": [], 
                 "user_selections": {},
                 "metadata": {
@@ -285,20 +309,20 @@ def save_user_selection(message_id):
                 }
             }
         
-        if 'user_selections' not in receipt_data[message_id]:
-            receipt_data[message_id]['user_selections'] = {}
+        if 'user_selections' not in receipt_data[message_id_str]:
+            receipt_data[message_id_str]['user_selections'] = {}
         
         # Обновляем время последнего обновления
-        if 'metadata' not in receipt_data[message_id]:
-            receipt_data[message_id]['metadata'] = {
+        if 'metadata' not in receipt_data[message_id_str]:
+            receipt_data[message_id_str]['metadata'] = {
                 'created_at': time.time(),
                 'last_updated': time.time()
             }
         else:
-            receipt_data[message_id]['metadata']['last_updated'] = time.time()
+            receipt_data[message_id_str]['metadata']['last_updated'] = time.time()
             
         # Используем строковый user_id в качестве ключа
-        receipt_data[message_id]['user_selections'][user_id_str] = selected_items_str_keys
+        receipt_data[message_id_str]['user_selections'][user_id_str] = selected_items_str_keys
         logger.info(f"Пользовательский выбор сохранен: {user_id_str} -> {selected_items_str_keys}")
         
         # Сохраняем данные в файл после изменения
@@ -348,7 +372,7 @@ def debug():
 def test_selection_persistence():
     """Тестирование сохранения и загрузки выбора пользователя"""
     try:
-        test_message_id = 12345
+        test_message_id = "12345"  # Используем строковый ключ
         test_user_id = "67890"
         test_selection = {"0": 1, "1": 2, "2": 3}
         
