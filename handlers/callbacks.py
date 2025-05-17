@@ -1,11 +1,13 @@
 import logging
 from decimal import Decimal
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, InlineKeyboardButton
+from aiogram.types import CallbackQuery, InlineKeyboardButton, WebAppInfo
+from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from utils.keyboards import create_items_keyboard_with_counters
 from handlers.photo import ReceiptStates
+from config.settings import WEBAPP_URL
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -350,4 +352,165 @@ async def process_show_inline_help(callback: CallbackQuery):
         
     except Exception as e:
         logger.error(f"Ошибка при показе инструкции по inline-режиму: {e}", exc_info=True)
-        await callback.answer("Произошла ошибка при загрузке инструкции") 
+        await callback.answer("Произошла ошибка при загрузке инструкции")
+
+@router.callback_query(F.data == "show_split_instructions")
+async def handle_show_instructions(callback: CallbackQuery, state: FSMContext):
+    """Показывает инструкцию по использованию функционала для разделения чека."""
+    try:
+        instructions_text = (
+            "<b>📝 Как разделить чек с помощью бота:</b>\n\n"
+            "<b>В личном чате:</b>\n"
+            "1. Отправьте фото чека боту\n"
+            "2. Нажмите на кнопку 'Открыть мини-приложение'\n"
+            "3. Выберите позиции, которые вы заказали\n"
+            "4. Нажмите 'Подтвердить'\n\n"
+            
+            "<b>В групповом чате:</b>\n"
+            "1. Используйте команду /split\n"
+            "2. Отправьте фото чека\n"
+            "3. Нажмите на кнопку 'Открыть мини-приложение (в личном чате)'\n"
+            "4. Бот откроет личный чат для выбора позиций\n"
+            "5. После подтверждения выбора бот отправит вам сообщение с итогами\n\n"
+            
+            "<i>💡 Совет: Чтобы получить лучший результат, отправляйте четкое изображение чека с хорошо видимым текстом и суммами.</i>"
+        )
+        
+        # Создаем кнопку возврата
+        keyboard = InlineKeyboardBuilder()
+        keyboard.row(InlineKeyboardButton(text="⬅️ Вернуться", callback_data="back_to_receipt"))
+        
+        # Отправляем сообщение с инструкцией
+        await callback.message.edit_text(
+            instructions_text,
+            reply_markup=keyboard.as_markup(),
+            parse_mode="HTML"
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка при показе инструкции: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка. Пожалуйста, попробуйте еще раз.")
+
+@router.callback_query(F.data == "back_to_receipt")
+async def handle_back_to_receipt(callback: CallbackQuery, state: FSMContext):
+    """Возвращает пользователя к исходному сообщению с чеком."""
+    try:
+        # Получаем message_id текущего сообщения
+        message_id = callback.message.message_id
+        
+        # Проверяем, есть ли данные для этого сообщения
+        if message_id not in message_states:
+            logger.warning(f"Состояние для message_id {message_id} не найдено")
+            await callback.answer("Информация о чеке не найдена. Возможно, она устарела.", show_alert=True)
+            return
+            
+        # Получаем данные о чеке
+        receipt_data = message_states[message_id]
+        items = receipt_data.get("items", [])
+        service_charge = receipt_data.get("service_charge_percent")
+        total_check_amount = receipt_data.get("total_check_amount")
+        total_discount_percent = receipt_data.get("total_discount_percent")
+        total_discount_amount = receipt_data.get("total_discount_amount")
+        actual_discount_percent = receipt_data.get("actual_discount_percent", Decimal("0.00"))
+        
+        # Формируем сообщение с позициями
+        response_msg_text = "<b>📋 Распознанные позиции из чека:</b>\n\n"
+        
+        # Добавляем информацию о распознанных позициях
+        for idx, item in enumerate(items):
+            description = item.get("description", "N/A")
+            quantity = item.get("quantity_from_openai", 1)
+            unit_price = item.get("unit_price_from_openai")
+            total_amount = item.get("total_amount_from_openai")
+            
+            # Определяем, является ли товар весовым
+            is_weight_item = False
+            if quantity == 1 and total_amount is not None and unit_price is not None:
+                price_diff = abs(total_amount - unit_price)
+                is_weight_item = price_diff > Decimal("0.01")
+                
+            # Формируем строку позиции
+            if is_weight_item and total_amount is not None:
+                price_info = f"{total_amount:.2f}"
+                item_line = f"• {description}: {price_info}\n"
+            elif unit_price is not None:
+                price_info = f"{unit_price:.2f} × {quantity} = {unit_price * quantity:.2f}"
+                item_line = f"• {description}: {price_info}\n"
+            elif total_amount is not None:
+                price_info = f"{total_amount:.2f}"
+                item_line = f"• {description}: {price_info}\n"
+            else:
+                item_line = f"• {description}\n"
+                
+            response_msg_text += item_line
+        
+        # Добавляем информацию о скидках и сервисном сборе
+        response_msg_text += "\n<b>📊 Итоговая информация:</b>\n"
+        
+        if actual_discount_percent > 0:
+            response_msg_text += f"🎉 Скидка: {actual_discount_percent}% (-{total_discount_amount:.2f})\n"
+        
+        if service_charge is not None:
+            service_charge_amount = Decimal("0.00")
+            if total_check_amount is not None:
+                calculated_total = total_check_amount
+                service_charge_amount = (calculated_total * service_charge / Decimal("100")).quantize(Decimal("0.01"))
+            response_msg_text += f"💰 Сервисный сбор: {service_charge}% (+{service_charge_amount:.2f})\n"
+        
+        if total_check_amount is not None:
+            response_msg_text += f"✅ Итоговая сумма: {total_check_amount:.2f}\n"
+            
+        # Создаем клавиатуру для WebApp или перехода в личный чат
+        keyboard = InlineKeyboardBuilder()
+        is_private_chat = callback.message.chat.type == ChatType.PRIVATE
+        bot_username = "Splitix_bot"  # Fallback значение
+        
+        # Опциональная кнопка для отображения инструкции
+        keyboard.row(InlineKeyboardButton(
+            text="ℹ️ Инструкция по использованию",
+            callback_data="show_split_instructions"
+        ))
+        
+        # Добавляем кнопку для WebApp или перехода в личный чат
+        if WEBAPP_URL and not ("http://localhost" in WEBAPP_URL or "http://127.0.0.1" in WEBAPP_URL):
+            if is_private_chat:
+                # В личном чате добавляем WebApp кнопку
+                clean_url = WEBAPP_URL.strip('"\'')
+                webapp_url = f"{clean_url}/{message_id}"
+                
+                try:
+                    keyboard.row(InlineKeyboardButton(
+                        text="🌐 Открыть мини-приложение", 
+                        web_app=WebAppInfo(url=webapp_url)
+                    ))
+                except Exception as e:
+                    logger.error(f"Ошибка при создании кнопки WebApp: {e}", exc_info=True)
+            else:
+                # В групповом чате добавляем кнопку для перехода в личный чат
+                keyboard.row(InlineKeyboardButton(
+                    text="🌐 Открыть мини-приложение (в личном чате)", 
+                    url=f"https://t.me/{bot_username}?start=webapp_{message_id}"
+                ))
+        
+        # Добавляем сообщение о мини-приложении
+        webapp_info = ""
+        if WEBAPP_URL and not ("http://localhost" in WEBAPP_URL or "http://127.0.0.1" in WEBAPP_URL):
+            if is_private_chat:
+                webapp_info = "\n\n<i>💡 Нажмите на кнопку ниже, чтобы открыть мини-приложение и выбрать свои позиции</i>"
+            else:
+                webapp_info = "\n\n<i>💡 В групповом чате нажмите на кнопку ниже, чтобы перейти в личный чат с ботом и открыть мини-приложение</i>"
+        else:
+            webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно</i>" if WEBAPP_URL else ""
+        
+        # Отправляем сообщение с распознанными позициями и кнопкой WebApp
+        await callback.message.edit_text(
+            response_msg_text + webapp_info,
+            reply_markup=keyboard.as_markup(),
+            parse_mode="HTML"
+        )
+        
+        await callback.answer()
+        
+    except Exception as e:
+        logger.error(f"Ошибка при возврате к чеку: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка. Пожалуйста, попробуйте еще раз.") 

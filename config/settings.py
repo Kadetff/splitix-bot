@@ -21,6 +21,7 @@ if not OPENAI_API_KEY:
 # OpenAI model settings
 OPENAI_MODEL = "gpt-4.1-mini"
 OPENAI_MAX_TOKENS = 1500
+USE_OPENAI_GPT_VISION = True  # Использовать ли GPT Vision для анализа чеков
 
 # WebApp settings
 WEBAPP_URL = os.getenv("WEBAPP_URL")

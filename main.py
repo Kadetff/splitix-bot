@@ -1,28 +1,24 @@
 import asyncio
 import logging
-import sys
 from typing import Any
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
-from config.settings import TELEGRAM_BOT_TOKEN, LOG_LEVEL
+from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
+from config.settings import TELEGRAM_BOT_TOKEN, LOG_LEVEL, WEBAPP_URL, USE_OPENAI_GPT_VISION, OPENAI_MODEL
 from handlers import photo, callbacks, commands, webapp, inline
 
 # Настраиваем логирование
 logging.basicConfig(
-    level=LOG_LEVEL,
+    level=logging.DEBUG if LOG_LEVEL == "DEBUG" else logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("bot.log"),
-        logging.StreamHandler(sys.stdout)
+        logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
-
-# Инициализация бота и диспетчера
-bot = Bot(token=TELEGRAM_BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
-storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
 
 # Словарь для хранения состояния (items и их счетчики) для каждого сообщения с клавиатурой
 message_states: dict[int, dict[str, Any]] = {}
@@ -33,17 +29,35 @@ photo.message_states = message_states
 webapp.message_states = message_states
 
 async def main():
-    logger.info("Бот запускается с OpenAI GPT Vision и подтверждением выбора...")
+    logger.info(f"Бот запускается с OpenAI GPT Vision и подтверждением выбора...")
     logger.info(f"Уровень логирования: {LOG_LEVEL}")
     
-    # Регистрация роутеров из handlers
-    dp.include_router(commands.router)
+    # Инициализируем бота и диспетчер
+    storage = MemoryStorage()
+    bot = Bot(token=TELEGRAM_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    dp = Dispatcher(storage=storage)
+    
+    # Регистрируем команды бота
+    await register_commands(bot)
+    
+    # Регистрируем обработчики
     dp.include_router(photo.router)
     dp.include_router(callbacks.router)
+    dp.include_router(commands.router)
     dp.include_router(webapp.router)
     dp.include_router(inline.router)
     
     await dp.start_polling(bot)
+
+async def register_commands(bot: Bot):
+    """Регистрирует команды бота для отображения в меню."""
+    commands = [
+        BotCommand(command="start", description="👋 Начать работу с ботом"),
+        BotCommand(command="help", description="❓ Помощь по использованию бота"),
+        BotCommand(command="split", description="📇 Разделить чек (в группе)")
+    ]
+    await bot.set_my_commands(commands)
+    logger.info("Команды бота зарегистрированы")
 
 if __name__ == "__main__":
     asyncio.run(main()) 

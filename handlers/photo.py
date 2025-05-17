@@ -4,7 +4,7 @@ import json
 import asyncio
 from decimal import Decimal
 from aiogram import F, Router
-from aiogram.types import Message, InlineKeyboardButton
+from aiogram.types import Message, InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.enums import ChatType
 from aiogram.fsm.context import FSMContext
@@ -181,28 +181,58 @@ async def process_receipt_photo(message: Message, state: FSMContext):
             calculated_total += service_charge_amount
 
         # Формируем сообщение о распознанных позициях
-        response_msg_text = "Позиции из чека — выберите, что добавить в свой счёт:\n"
+        response_msg_text = "<b>📋 Распознанные позиции из чека:</b>\n\n"
+        
+        # Добавляем информацию о распознанных позициях
+        for idx, item in enumerate(items):
+            description = item.get("description", "N/A")
+            quantity = item.get("quantity_from_openai", 1)
+            unit_price = item.get("unit_price_from_openai")
+            total_amount = item.get("total_amount_from_openai")
+            
+            # Определяем, является ли товар весовым
+            is_weight_item = False
+            if quantity == 1 and total_amount is not None and unit_price is not None:
+                price_diff = abs(total_amount - unit_price)
+                is_weight_item = price_diff > Decimal("0.01")
+                
+            # Формируем строку позиции
+            if is_weight_item and total_amount is not None:
+                price_info = f"{total_amount:.2f}"
+                item_line = f"• {description}: {price_info}\n"
+            elif unit_price is not None:
+                price_info = f"{unit_price:.2f} × {quantity} = {unit_price * quantity:.2f}"
+                item_line = f"• {description}: {price_info}\n"
+            elif total_amount is not None:
+                price_info = f"{total_amount:.2f}"
+                item_line = f"• {description}: {price_info}\n"
+            else:
+                item_line = f"• {description}\n"
+                
+            response_msg_text += item_line
         
         # Инициализируем переменную actual_discount_percent до условного блока
         actual_discount_percent = Decimal("0.00")
         
         # Добавляем информацию о скидках
+        response_msg_text += "\n<b>📊 Итоговая информация:</b>\n"
+        
         if total_discount_percent is not None or total_discount_amount is not None:
             # Рассчитываем фактический процент скидки
             if total_items_cost > 0:
                 actual_discount_percent = (total_discounts * Decimal("100") / total_items_cost).quantize(Decimal("0.01"))
-                response_msg_text += f"\n🎉 Применена скидка: {actual_discount_percent}% (-{total_discounts:.2f})"
+                response_msg_text += f"🎉 Скидка: {actual_discount_percent}% (-{total_discounts:.2f})\n"
         
         # Добавляем информацию о сервисном сборе
         if service_charge is not None:
-            response_msg_text += f"\n💰 Сервисный сбор: {service_charge}% (+{service_charge_amount:.2f})"
+            response_msg_text += f"💰 Сервисный сбор: {service_charge}% (+{service_charge_amount:.2f})\n"
         
         # Добавляем информацию о совпадении сумм
         if total_check_amount is not None:
             if abs(calculated_total - total_check_amount) < Decimal("0.01"):  # Учитываем возможные погрешности округления
-                response_msg_text += f"\n✅ Итоговая сумма: {total_check_amount:.2f} (совпадает с расчетом)"
+                response_msg_text += f"✅ Итоговая сумма: {total_check_amount:.2f} (совпадает с расчетом)\n"
             else:
-                response_msg_text += f"\n⚠️ Внимание: сумма в чеке ({total_check_amount:.2f}) не совпадает с расчетом ({calculated_total:.2f}). Возможно есть ошибки в распознавании."
+                response_msg_text += f"⚠️ Внимание: сумма в чеке ({total_check_amount:.2f}) не совпадает с расчетом ({calculated_total:.2f}). Возможно есть ошибки в распознавании.\n"
         
         # Создаем пустой словарь счетчиков для пользователя
         empty_user_counts = {}
@@ -232,27 +262,59 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         else:
             api_saved = False
         
-        # Создаем клавиатуру и отправляем сообщение, обрабатывая возможные ошибки
+        # Создаем клавиатуру для WebApp или перехода в личный чат
         try:
-            # Создаем клавиатуру в зависимости от доступности WebApp
-            if webapp_enabled:
-                logger.info("Создаем клавиатуру с WebApp кнопкой")
-                keyboard = create_items_keyboard_with_counters(items, empty_user_counts, message_id=message_id, chat_type=message.chat.type)
-                webapp_info = "\n\n<i>💻 Доступно в веб-приложении</i>"
-            else:
-                logger.info("Создаем клавиатуру без WebApp кнопки")
-                keyboard = create_items_keyboard_with_counters(items, empty_user_counts, chat_type=message.chat.type)
-                webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно, используйте кнопки ниже</i>" if WEBAPP_URL else ""
+            keyboard = InlineKeyboardBuilder()
+            is_private_chat = message.chat.type == ChatType.PRIVATE
+            bot_username = "Splitix_bot"  # Fallback значение, если не сможем получить динамически
             
-            # Отправляем сообщение с информацией о чеке и клавиатурой
-            result_message = await processing_message.edit_text(
-                response_msg_text + webapp_info,
-                reply_markup=keyboard,
-                parse_mode="HTML"
-            )
+            # Опциональная кнопка для отображения инструкции
+            keyboard.row(InlineKeyboardButton(
+                text="ℹ️ Инструкция по использованию",
+                callback_data="show_split_instructions"
+            ))
+            
+            # Добавляем кнопку для WebApp или перехода в личный чат
+            if webapp_enabled:
+                if is_private_chat:
+                    # В личном чате добавляем WebApp кнопку
+                    logger.info(f"Создаем кнопку WebApp с URL: {WEBAPP_URL}/{message_id}")
+                    clean_url = WEBAPP_URL.strip('"\'')
+                    webapp_url = f"{clean_url}/{message_id}"
+                    
+                    try:
+                        keyboard.row(InlineKeyboardButton(
+                            text="🌐 Открыть мини-приложение", 
+                            web_app=WebAppInfo(url=webapp_url)
+                        ))
+                    except Exception as e:
+                        logger.error(f"Ошибка при создании кнопки WebApp: {e}", exc_info=True)
+                else:
+                    # В групповом чате добавляем кнопку для перехода в личный чат
+                    keyboard.row(InlineKeyboardButton(
+                        text="🌐 Открыть мини-приложение (в личном чате)", 
+                        url=f"https://t.me/{bot_username}?start=webapp_{message_id}"
+                    ))
             
             # Сохраняем данные в глобальный словарь message_states
-            message_states[result_message.message_id] = receipt_data
+            message_states[message_id] = receipt_data
+            
+            # Добавляем сообщение о мини-приложении
+            webapp_info = ""
+            if webapp_enabled:
+                if is_private_chat:
+                    webapp_info = "\n\n<i>💡 Нажмите на кнопку ниже, чтобы открыть мини-приложение и выбрать свои позиции</i>"
+                else:
+                    webapp_info = "\n\n<i>💡 В групповом чате нажмите на кнопку ниже, чтобы перейти в личный чат с ботом и открыть мини-приложение</i>"
+            else:
+                webapp_info = "\n\n<i>⚠️ Веб-приложение временно недоступно</i>" if WEBAPP_URL else ""
+            
+            # Отправляем сообщение с распознанными позициями и кнопкой WebApp
+            result_message = await processing_message.edit_text(
+                response_msg_text + webapp_info,
+                reply_markup=keyboard.as_markup(),
+                parse_mode="HTML"
+            )
             
             # Устанавливаем состояние ожидания выбора товаров
             await state.set_state(ReceiptStates.waiting_for_items_selection)
@@ -261,21 +323,10 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         except Exception as keyboard_error:
             logger.error(f"Ошибка при создании клавиатуры или отправке сообщения: {keyboard_error}", exc_info=True)
             
-            # Пробуем создать простую клавиатуру без WebApp и отправить ее
+            # Отправляем сообщение без клавиатуры в случае ошибки
             try:
-                # Создаем простую клавиатуру только с кнопкой подтверждения
-                simple_keyboard = InlineKeyboardBuilder()
-                for idx, item in enumerate(items):
-                    description = item.get("description", "N/A")[:25]
-                    simple_keyboard.row(InlineKeyboardButton(text=f"{description}", callback_data=f"increment_item:{idx}"))
-                
-                simple_keyboard.row(InlineKeyboardButton(text="✅ Подтвердить выбор", callback_data="confirm_selection"))
-                
-                # Повторно отправляем сообщение с простой клавиатурой
-                logger.info("Пробуем отправить сообщение с простой клавиатурой после ошибки")
                 result_message = await processing_message.edit_text(
-                    response_msg_text + "\n\n<i>⚠️ Упрощенный режим из-за ограничений чата</i>",
-                    reply_markup=simple_keyboard.as_markup(),
+                    response_msg_text + "\n\n<i>⚠️ Произошла ошибка при создании интерфейса</i>",
                     parse_mode="HTML"
                 )
                 
@@ -287,7 +338,7 @@ async def process_receipt_photo(message: Message, state: FSMContext):
                 logger.info("Состояние установлено в упрощенном режиме: waiting_for_items_selection")
                 
             except Exception as simple_error:
-                logger.error(f"Критическая ошибка при создании простой клавиатуры: {simple_error}", exc_info=True)
+                logger.error(f"Критическая ошибка при отправке сообщения: {simple_error}", exc_info=True)
                 await processing_message.edit_text(
                     "❌ Возникла ошибка при создании интерфейса. Пожалуйста, используйте личный чат с ботом @Splitix_bot"
                 )
