@@ -1,7 +1,7 @@
 import logging
 from aiogram import Router, F
 from aiogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent
-from aiogram.types import WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from uuid import uuid4
 from config.settings import WEBAPP_URL
 
@@ -19,13 +19,13 @@ async def process_inline_query(query: InlineQuery):
     help_id = str(uuid4())
     about_id = str(uuid4())
     
-    # Создаем кнопку с веб-приложением для встраивания в инлайн-результат
+    # Создаем кнопку с URL для открытия веб-приложения в браузере
     webapp_keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Открыть приложение", 
-                    web_app=WebAppInfo(url=WEBAPP_URL)
+                    text="Открыть приложение в браузере", 
+                    url=WEBAPP_URL
                 )
             ]
         ]
@@ -47,7 +47,7 @@ async def process_inline_query(query: InlineQuery):
             title="🌐 Открыть веб-приложение",
             description="Запустите веб-приложение для разделения чека",
             input_message_content=InputTextMessageContent(
-                message_text="*СплитЧек* - Нажмите на кнопку ниже, чтобы открыть веб-приложение для разделения чека:",
+                message_text="*СплитЧек* - Нажмите на кнопку ниже, чтобы открыть веб-приложение в браузере:",
                 parse_mode="Markdown"
             ),
             reply_markup=webapp_keyboard,
@@ -77,6 +77,30 @@ async def process_inline_query(query: InlineQuery):
         )
     ]
     
+    # Добавляем специальный вариант для личных чатов
+    private_chat_id = str(uuid4())
+    results.append(
+        InlineQueryResultArticle(
+            id=private_chat_id,
+            title="👤 Открыть личный чат с ботом",
+            description="Для полной функциональности лучше использовать личный чат",
+            input_message_content=InputTextMessageContent(
+                message_text="Для полной работы с чеками, включая WebApp, откройте личный чат с ботом:"
+            ),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Открыть личный чат с ботом", 
+                            url=f"https://t.me/{(await query.bot.get_me()).username}"
+                        )
+                    ]
+                ]
+            ),
+            thumbnail_url="https://img.icons8.com/color/48/000000/chat.png"
+        )
+    )
+    
     # Если пользователь ввел какой-то запрос, добавляем результат поиска
     if query.query:
         search_id = str(uuid4())
@@ -93,4 +117,27 @@ async def process_inline_query(query: InlineQuery):
         )
     
     # Отправляем результаты
-    await query.answer(results, cache_time=300)  # Кэшируем на 5 минут 
+    try:
+        await query.answer(results, cache_time=300)  # Кэшируем на 5 минут
+    except Exception as e:
+        logger.error(f"Ошибка при отправке inline результатов: {e}", exc_info=True)
+        # В случае ошибки отправляем только базовые результаты без веб-приложения
+        basic_results = [
+            InlineQueryResultArticle(
+                id=split_id,
+                title="📷 Разделить чек",
+                description="Отправить команду для начала сканирования чека",
+                input_message_content=InputTextMessageContent(
+                    message_text="/split"
+                )
+            ),
+            InlineQueryResultArticle(
+                id=help_id,
+                title="❓ Помощь",
+                description="Отправить справку по использованию бота",
+                input_message_content=InputTextMessageContent(
+                    message_text="/help"
+                )
+            )
+        ]
+        await query.answer(basic_results, cache_time=300) 
