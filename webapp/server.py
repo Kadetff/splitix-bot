@@ -342,5 +342,81 @@ def debug():
         "current_dir": os.getcwd()
     })
 
+# Маршрут для тестирования сохранения выбора пользователя
+@app.route('/test_selection_persistence')
+def test_selection_persistence():
+    """Тестирование сохранения и загрузки выбора пользователя"""
+    try:
+        test_message_id = 12345
+        test_user_id = "67890"
+        test_selection = {"0": 1, "1": 2, "2": 3}
+        
+        # Сохраняем тестовые данные
+        if test_message_id not in receipt_data:
+            receipt_data[test_message_id] = {
+                "items": [
+                    {"id": 0, "description": "Тестовый товар 1", "quantity_from_openai": 2, "unit_price_from_openai": 150.00, "total_amount_from_openai": 300.00},
+                    {"id": 1, "description": "Тестовый товар 2", "quantity_from_openai": 1, "unit_price_from_openai": 180.00, "total_amount_from_openai": 180.00},
+                    {"id": 2, "description": "Тестовый товар 3", "quantity_from_openai": 3, "unit_price_from_openai": 350.00, "total_amount_from_openai": 1050.00}
+                ],
+                "user_selections": {},
+                "metadata": {
+                    'created_at': time.time(),
+                    'last_updated': time.time()
+                }
+            }
+        
+        # Сохраняем тестовый выбор пользователя
+        receipt_data[test_message_id]['user_selections'][test_user_id] = test_selection
+        logger.info(f"Тестовый выбор сохранен: {test_user_id} -> {test_selection}")
+        
+        # Сохраняем данные в файл
+        save_receipt_data_to_file()
+        
+        # Очищаем данные в памяти для тестирования загрузки
+        receipt_data.clear()
+        logger.info("Данные очищены в памяти для тестирования загрузки из файла")
+        
+        # Загружаем данные из файла
+        load_receipt_data()
+        
+        # Проверяем загруженные данные
+        if test_message_id in receipt_data and 'user_selections' in receipt_data[test_message_id]:
+            loaded_selection = receipt_data[test_message_id]['user_selections'].get(test_user_id)
+            logger.info(f"Загруженный выбор: {loaded_selection}")
+            
+            if loaded_selection == test_selection:
+                return jsonify({
+                    "success": True,
+                    "message": "Тест пройден успешно",
+                    "test_data": {
+                        "saved": test_selection,
+                        "loaded": loaded_selection
+                    }
+                })
+            else:
+                return jsonify({
+                    "success": False,
+                    "message": "Тест не пройден: загруженные данные не соответствуют сохраненным",
+                    "test_data": {
+                        "saved": test_selection,
+                        "loaded": loaded_selection
+                    }
+                })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Тест не пройден: данные не найдены после загрузки",
+                "test_data": {
+                    "saved": test_selection,
+                    "loaded": None,
+                    "receipt_data_keys": list(receipt_data.keys())
+                }
+            })
+            
+    except Exception as e:
+        logger.error(f"Ошибка при тестировании: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8080) 
