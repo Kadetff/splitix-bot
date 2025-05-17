@@ -479,10 +479,13 @@
                 // Подготовка счетчиков - используем пустые счетчики, если нет данных для текущего пользователя
                 userCounts = {}; // Сброс счетчиков
                 
+                // Преобразуем user_id в строку перед проверкой
+                const userIdStr = String(userId);
+                
                 // Если есть выбор текущего пользователя, используем его
-                if (userSelections[userId]) {
-                    debugInfo.innerHTML += `Найден выбор для текущего пользователя: ${JSON.stringify(userSelections[userId])}<br>`;
-                    userCounts = userSelections[userId];
+                if (userSelections[userIdStr]) {
+                    debugInfo.innerHTML += `Найден выбор для текущего пользователя: ${JSON.stringify(userSelections[userIdStr])}<br>`;
+                    userCounts = userSelections[userIdStr];
                 } else {
                     debugInfo.innerHTML += `Выбор для текущего пользователя не найден, инициализируем пустые счетчики<br>`;
                     // Инициализируем пустые счетчики для всех товаров
@@ -714,13 +717,16 @@
                 debugInfo.innerHTML += `Отправка выбора: ${JSON.stringify(selectedItems)}<br>`;
                 
                 // Выбор уже автоматически сохранен, но обновим его еще раз для уверенности
+                // Преобразуем userId в строку для отправки
+                const userIdStr = String(userId);
+                
                 const response = await fetch(`${API_BASE_URL}/api/selection/${messageId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        user_id: userId,
+                        user_id: userIdStr,
                         selected_items: selectedItems
                     })
                 });
@@ -830,6 +836,9 @@
                 
                 debugInfo.innerHTML += `Автосохранение выбора: ${JSON.stringify(selectedItems)}<br>`;
                 
+                // Всегда преобразуем userId в строку для отправки
+                const userIdStr = String(userId);
+                
                 // Сохраняем выбор на сервере
                 const response = await fetch(`${API_BASE_URL}/api/selection/${messageId}`, {
                     method: 'POST',
@@ -837,7 +846,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        user_id: userId,
+                        user_id: userIdStr,
                         selected_items: selectedItems
                     })
                 });

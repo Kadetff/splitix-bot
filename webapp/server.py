@@ -65,27 +65,28 @@ def load_receipt_data():
 
 # Функция для очистки устаревших данных
 def cleanup_expired_data():
+    global receipt_data
     try:
-        # Рассчитываем временную границу для удаления (7 дней назад)
-        expiration_time = time.time() - (DATA_EXPIRATION_DAYS * 24 * 60 * 60)
+        now = time.time()
+        expired_msg_ids = []
         
-        # Ищем устаревшие записи
-        expired_keys = []
+        # Находим все устаревшие записи
         for msg_id, msg_data in receipt_data.items():
-            if isinstance(msg_data, dict) and 'metadata' in msg_data:
-                created_at = msg_data['metadata'].get('created_at', 0)
-                if created_at < expiration_time:
-                    expired_keys.append(msg_id)
+            if 'metadata' in msg_data and 'created_at' in msg_data['metadata']:
+                created_at = msg_data['metadata']['created_at']
+                age_days = (now - created_at) / (60 * 60 * 24)  # Возраст в днях
+                
+                if age_days > DATA_EXPIRATION_DAYS:
+                    expired_msg_ids.append(msg_id)
         
         # Удаляем устаревшие записи
-        for key in expired_keys:
-            del receipt_data[key]
+        for msg_id in expired_msg_ids:
+            del receipt_data[msg_id]
             
-        if expired_keys:
-            logger.info(f"Удалено {len(expired_keys)} устаревших записей")
-            
-        # Сохраняем обновленные данные
-        save_receipt_data()
+        if expired_msg_ids:
+            logger.info(f"Удалено {len(expired_msg_ids)} устаревших записей")
+            # Сохраняем изменения в файл
+            save_receipt_data()
     except Exception as e:
         logger.error(f"Ошибка при очистке устаревших данных: {e}")
 
@@ -103,32 +104,18 @@ def save_receipt_data():
     except Exception as e:
         logger.error(f"Ошибка при сохранении данных в файл: {e}")
 
-# Загружаем данные при запуске приложения
+# Загружаем данные при запуске
 load_receipt_data()
 
 @app.route('/')
 def index():
-    """Обработка запроса главной страницы"""
-    logger.info(f"Запрос главной страницы, webapp_dir: {webapp_dir}")
+    """Главная страница"""
     index_path = os.path.join(webapp_dir, 'index.html')
-    logger.info(f"Полный путь к index.html: {index_path}")
-    
-    # Проверяем наличие файла
-    if os.path.exists(index_path):
-        logger.info(f"Файл index.html найден по пути: {index_path}")
-        try:
-            return send_file(index_path)
-        except Exception as e:
-            logger.error(f"Ошибка при отправке файла: {e}")
-            return f"Ошибка при отправке файла: {e}", 500
-    else:
-        logger.error(f"Файл index.html не найден по пути: {index_path}")
-        return "Файл не найден", 404
+    return send_file(index_path)
 
 @app.route('/health')
 def health_check():
-    """Простой эндпоинт для проверки доступности API"""
-    logger.info("Запрос проверки состояния API")
+    """Проверка работоспособности API"""
     return jsonify({"status": "ok", "message": "API is running"})
 
 @app.route('/<int:message_id>')
@@ -190,10 +177,12 @@ def get_receipt_data(message_id):
     
     # Фильтруем user_selections, чтобы передавать только данные текущего пользователя
     if 'user_selections' in result_data and user_id:
+        # Преобразуем user_id в строку для сравнения
+        user_id_str = str(user_id)
         # Создаем новый словарь только с данными текущего пользователя
         filtered_selections = {}
-        if user_id in result_data['user_selections']:
-            filtered_selections[user_id] = result_data['user_selections'][user_id]
+        if user_id_str in result_data['user_selections']:
+            filtered_selections[user_id_str] = result_data['user_selections'][user_id_str]
         result_data['user_selections'] = filtered_selections
     else:
         # Если user_id не указан или нет user_selections, возвращаем пустой словарь
@@ -238,6 +227,11 @@ def save_user_selection(message_id):
         user_id = data.get('user_id')
         selected_items = data.get('selected_items')
         
+        # Всегда преобразуем user_id в строку для использования в качестве ключа
+        user_id_str = str(user_id)
+        
+        logger.info(f"Сохранение выбора для пользователя: {user_id_str}")
+        
         if message_id not in receipt_data:
             receipt_data[message_id] = {
                 "items": [], 
@@ -260,7 +254,8 @@ def save_user_selection(message_id):
         else:
             receipt_data[message_id]['metadata']['last_updated'] = time.time()
             
-        receipt_data[message_id]['user_selections'][user_id] = selected_items
+        # Используем строковый user_id в качестве ключа
+        receipt_data[message_id]['user_selections'][user_id_str] = selected_items
         
         # Сохраняем данные в файл после изменения
         save_receipt_data()
@@ -269,15 +264,6 @@ def save_user_selection(message_id):
     except Exception as e:
         logger.error(f"Ошибка при сохранении выбора: {e}")
         return jsonify({"error": str(e)}), 500
-
-# Добавляем маршрут для отладки
-@app.route('/debug')
-def debug():
-    return jsonify({
-        "receipt_data": receipt_data,
-        "webapp_dir": webapp_dir,
-        "current_dir": os.getcwd()
-    })
 
 # Маршрут для очистки устаревших данных
 @app.route('/maintenance/cleanup', methods=['POST'])
@@ -298,13 +284,20 @@ def trigger_cleanup():
             "message": f"Очистка выполнена успешно",
             "records_before": before_count,
             "records_after": after_count,
-            "deleted": before_count - after_count
+            "records_removed": before_count - after_count
         })
     except Exception as e:
-        logger.error(f"Ошибка при выполнении очистки: {e}")
+        logger.error(f"Ошибка при запуске очистки: {e}")
         return jsonify({"error": str(e)}), 500
 
+# Добавляем маршрут для отладки
+@app.route('/debug')
+def debug():
+    return jsonify({
+        "receipt_data": receipt_data,
+        "webapp_dir": webapp_dir,
+        "current_dir": os.getcwd()
+    })
+
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080))
-    logger.info(f"Запуск сервера на порту {port}, webapp_dir: {webapp_dir}")
-    app.run(host='0.0.0.0', port=port, debug=True) 
+    app.run(debug=True, host='0.0.0.0', port=8080) 
