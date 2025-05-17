@@ -3,6 +3,7 @@ import logging
 import sys
 from typing import Any
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from config.settings import TELEGRAM_BOT_TOKEN, LOG_LEVEL
 from handlers import photo, callbacks, commands, webapp
@@ -19,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Инициализация бота и диспетчера
-bot = Bot(token=TELEGRAM_BOT_TOKEN, parse_mode="HTML")
+bot = Bot(token=TELEGRAM_BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
