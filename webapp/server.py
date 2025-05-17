@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
+import traceback
 
 # Получаем абсолютный путь к директории webapp
 webapp_dir = os.path.dirname(os.path.abspath(__file__))
@@ -373,7 +374,20 @@ def test_selection_persistence():
         # Сохраняем данные в файл
         save_receipt_data_to_file()
         
+        # Проверяем существование файла данных
+        file_exists = os.path.exists(data_file)
+        file_size = os.path.getsize(data_file) if file_exists else 0
+        file_content = None
+        if file_exists and file_size > 0:
+            try:
+                with open(data_file, 'r', encoding='utf-8') as f:
+                    file_content = json.load(f)
+            except Exception as e:
+                logger.error(f"Ошибка при чтении файла: {e}")
+                file_content = f"Ошибка: {str(e)}"
+        
         # Очищаем данные в памяти для тестирования загрузки
+        before_clear = dict(receipt_data)
         receipt_data.clear()
         logger.info("Данные очищены в памяти для тестирования загрузки из файла")
         
@@ -381,42 +395,42 @@ def test_selection_persistence():
         load_receipt_data()
         
         # Проверяем загруженные данные
-        if test_message_id in receipt_data and 'user_selections' in receipt_data[test_message_id]:
-            loaded_selection = receipt_data[test_message_id]['user_selections'].get(test_user_id)
-            logger.info(f"Загруженный выбор: {loaded_selection}")
-            
-            if loaded_selection == test_selection:
-                return jsonify({
-                    "success": True,
-                    "message": "Тест пройден успешно",
-                    "test_data": {
-                        "saved": test_selection,
-                        "loaded": loaded_selection
-                    }
-                })
-            else:
-                return jsonify({
-                    "success": False,
-                    "message": "Тест не пройден: загруженные данные не соответствуют сохраненным",
-                    "test_data": {
-                        "saved": test_selection,
-                        "loaded": loaded_selection
-                    }
-                })
-        else:
-            return jsonify({
-                "success": False,
-                "message": "Тест не пройден: данные не найдены после загрузки",
-                "test_data": {
-                    "saved": test_selection,
-                    "loaded": None,
-                    "receipt_data_keys": list(receipt_data.keys())
-                }
-            })
+        after_load = dict(receipt_data)
+        user_selections_in_loaded_data = receipt_data.get(test_message_id, {}).get('user_selections', {})
+        loaded_selection = user_selections_in_loaded_data.get(test_user_id) if user_selections_in_loaded_data else None
+        logger.info(f"Загруженный выбор: {loaded_selection}")
+        
+        # Подготавливаем отчет
+        report = {
+            "success": loaded_selection == test_selection,
+            "message": "Тест пройден успешно" if loaded_selection == test_selection else "Тест не пройден",
+            "test_data": {
+                "saved": test_selection,
+                "loaded": loaded_selection,
+                "file_exists": file_exists,
+                "file_size": file_size,
+                "file_content": file_content,
+                "data_before_clear": before_clear,
+                "data_after_load": after_load,
+                "receipt_data_keys": list(receipt_data.keys()),
+                "user_selections_in_loaded_data": user_selections_in_loaded_data
+            }
+        }
+        
+        # Если нет выбора пользователя, добавляем более детальную причину
+        if not loaded_selection:
+            if test_message_id not in receipt_data:
+                report["reason"] = f"Message ID {test_message_id} не найден в загруженных данных"
+            elif 'user_selections' not in receipt_data.get(test_message_id, {}):
+                report["reason"] = f"user_selections не найден в данных для message_id {test_message_id}"
+            elif test_user_id not in receipt_data.get(test_message_id, {}).get('user_selections', {}):
+                report["reason"] = f"User ID {test_user_id} не найден в user_selections для message_id {test_message_id}"
+        
+        return jsonify(report)
             
     except Exception as e:
         logger.error(f"Ошибка при тестировании: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8080) 
