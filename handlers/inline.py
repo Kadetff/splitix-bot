@@ -13,23 +13,19 @@ async def process_inline_query(query: InlineQuery):
     """Обработчик инлайн-запросов."""
     logger.info(f"Inline запрос от {query.from_user.id}: {query.query}")
     
+    # Получаем имя бота
+    try:
+        bot_info = await query.bot.get_me()
+        bot_username = bot_info.username
+    except Exception as e:
+        logger.error(f"Не удалось получить имя бота: {e}")
+        bot_username = "Splitix_bot"  # Fallback на известное имя бота
+    
     # Создаем уникальные ID для результатов
     split_id = str(uuid4())
     webapp_id = str(uuid4())
     help_id = str(uuid4())
     about_id = str(uuid4())
-    
-    # Создаем кнопку с URL для открытия веб-приложения в браузере
-    webapp_keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="Открыть приложение в браузере", 
-                    url=WEBAPP_URL
-                )
-            ]
-        ]
-    )
     
     # Создаем результаты для отображения
     results = [
@@ -44,13 +40,13 @@ async def process_inline_query(query: InlineQuery):
         ),
         InlineQueryResultArticle(
             id=webapp_id,
-            title="🌐 Открыть веб-приложение",
-            description="Запустите веб-приложение для разделения чека",
+            title="🌐 Открыть мини-приложение",
+            description="Запустить мини-приложение Telegram в групповом чате",
             input_message_content=InputTextMessageContent(
-                message_text="*СплитЧек* - Нажмите на кнопку ниже, чтобы открыть веб-приложение в браузере:",
+                message_text="*СплитЧек* - Для открытия мини-приложения выполните команду /webapp в этом чате.\n\n" + 
+                "После этого нажмите на появившуюся кнопку клавиатуры 'Открыть мини-приложение SplitCheck'.",
                 parse_mode="Markdown"
             ),
-            reply_markup=webapp_keyboard,
             thumbnail_url="https://img.icons8.com/color/48/000000/web.png"
         ),
         InlineQueryResultArticle(
@@ -68,38 +64,13 @@ async def process_inline_query(query: InlineQuery):
             description="Информация о боте для разделения чеков",
             input_message_content=InputTextMessageContent(
                 message_text="*Бот для разделения чеков*\n\n"
-                "Отправьте фото чека, и я помогу разделить его между участниками. "
-                "Я могу распознавать товары, цены, количества, и рассчитывать доли каждого участника.\n\n"
+                "Отправьте фото чека, и я помогу разделить его между участниками.\n\n"
                 "Для начала используйте команду /split и отправьте фото чека.",
                 parse_mode="Markdown"
             ),
             thumbnail_url="https://img.icons8.com/color/48/000000/info.png"
         )
     ]
-    
-    # Добавляем специальный вариант для личных чатов
-    private_chat_id = str(uuid4())
-    results.append(
-        InlineQueryResultArticle(
-            id=private_chat_id,
-            title="👤 Открыть личный чат с ботом",
-            description="Для полной функциональности лучше использовать личный чат",
-            input_message_content=InputTextMessageContent(
-                message_text="Для полной работы с чеками, включая WebApp, откройте личный чат с ботом:"
-            ),
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="Открыть личный чат с ботом", 
-                            url=f"https://t.me/{(await query.bot.get_me()).username}"
-                        )
-                    ]
-                ]
-            ),
-            thumbnail_url="https://img.icons8.com/color/48/000000/chat.png"
-        )
-    )
     
     # Если пользователь ввел какой-то запрос, добавляем результат поиска
     if query.query:
@@ -121,23 +92,18 @@ async def process_inline_query(query: InlineQuery):
         await query.answer(results, cache_time=300)  # Кэшируем на 5 минут
     except Exception as e:
         logger.error(f"Ошибка при отправке inline результатов: {e}", exc_info=True)
-        # В случае ошибки отправляем только базовые результаты без веб-приложения
+        # В случае ошибки отправляем только базовые результаты
         basic_results = [
             InlineQueryResultArticle(
-                id=split_id,
+                id=str(uuid4()),
                 title="📷 Разделить чек",
                 description="Отправить команду для начала сканирования чека",
                 input_message_content=InputTextMessageContent(
                     message_text="/split"
                 )
-            ),
-            InlineQueryResultArticle(
-                id=help_id,
-                title="❓ Помощь",
-                description="Отправить справку по использованию бота",
-                input_message_content=InputTextMessageContent(
-                    message_text="/help"
-                )
             )
         ]
-        await query.answer(basic_results, cache_time=300) 
+        try:
+            await query.answer(basic_results, cache_time=5)
+        except Exception as e2:
+            logger.critical(f"Критическая ошибка при отправке базовых результатов: {e2}", exc_info=True) 
