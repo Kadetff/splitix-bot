@@ -218,6 +218,7 @@
             <button class="debug-btn" id="test-data-btn">Загрузить тестовые данные</button>
             <button class="debug-btn" id="check-tg-btn">Проверить Telegram WebApp</button>
             <button class="debug-btn" id="send-test-data-btn">Отправить тестовые данные</button>
+            <button class="debug-btn" id="test-persistence-btn">Проверить сохранение</button>
         </div>
     </div>
     
@@ -345,6 +346,11 @@
             // Обработчик для кнопки отправки тестовых данных
             document.getElementById('send-test-data-btn').addEventListener('click', function() {
                 sendTestData();
+            });
+            
+            // Обработчик для кнопки тестирования сохранения
+            document.getElementById('test-persistence-btn').addEventListener('click', function() {
+                testPersistence();
             });
             
             // Обработчик для кнопки переключения отладочной информации
