@@ -86,12 +86,12 @@ def cleanup_expired_data():
         if expired_msg_ids:
             logger.info(f"Удалено {len(expired_msg_ids)} устаревших записей")
             # Сохраняем изменения в файл
-            save_receipt_data()
+            save_receipt_data_to_file()
     except Exception as e:
         logger.error(f"Ошибка при очистке устаревших данных: {e}")
 
 # Функция для сохранения данных в файл
-def save_receipt_data():
+def save_receipt_data_to_file():
     try:
         # Проверяем существование директории data
         if not os.path.exists(data_dir):
@@ -197,7 +197,21 @@ def save_receipt_data(message_id):
     logger.info(f"Сохранение данных чека для message_id: {message_id}")
     
     try:
+        if not request.is_json:
+            logger.error(f"Получен не JSON-запрос. Content-Type: {request.content_type}")
+            return jsonify({"error": "Expected JSON data"}), 400
+            
         data = request.json
+        logger.info(f"Получены данные: {str(data)[:200]}...")
+        
+        # Проверяем структуру данных
+        if not isinstance(data, dict):
+            logger.error(f"Получены данные неверного типа: {type(data).__name__}")
+            return jsonify({"error": f"Expected dictionary, got {type(data).__name__}"}), 400
+            
+        if 'items' not in data:
+            logger.error("В данных отсутствует обязательное поле 'items'")
+            return jsonify({"error": "Missing required field 'items'"}), 400
         
         # Добавляем метаданные о времени создания и обновления
         if 'metadata' not in data:
@@ -209,12 +223,13 @@ def save_receipt_data(message_id):
             data['metadata']['last_updated'] = time.time()
             
         receipt_data[message_id] = data
+        logger.info(f"Данные сохранены для message_id: {message_id}")
         
         # Сохраняем данные в файл после изменения
-        save_receipt_data()
+        save_receipt_data_to_file()
         return jsonify({"success": True, "message": "Data saved successfully"})
     except Exception as e:
-        logger.error(f"Ошибка при сохранении данных: {e}")
+        logger.error(f"Ошибка при сохранении данных: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/selection/<int:message_id>', methods=['POST'])
@@ -258,7 +273,7 @@ def save_user_selection(message_id):
         receipt_data[message_id]['user_selections'][user_id_str] = selected_items
         
         # Сохраняем данные в файл после изменения
-        save_receipt_data()
+        save_receipt_data_to_file()
         
         return jsonify({"success": True, "message": "Selection saved successfully"})
     except Exception as e:

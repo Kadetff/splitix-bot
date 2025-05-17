@@ -248,9 +248,8 @@ async def process_receipt_photo(message: Message, state: FSMContext):
             "actual_discount_percent": actual_discount_percent,
         }
         
-        # Сохраняем данные в API для веб-приложения
+        # Получаем message_id для сохранения
         message_id = processing_message.message_id
-        api_saved = await save_receipt_data_to_api(message_id, receipt_data)
         
         # Проверяем WEBAPP_URL перед созданием клавиатуры
         webapp_enabled = False
