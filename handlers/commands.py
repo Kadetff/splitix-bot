@@ -1,16 +1,34 @@
 import logging
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardButton, WebAppInfo
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from handlers.photo import ReceiptStates
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from config.settings import WEBAPP_URL
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 @router.message(Command("start"))
 async def cmd_start(message: Message):
-    """Обработчик команды /start"""
+    """Обработчик команды /start с поддержкой параметра webapp"""
+    args = message.text.split(maxsplit=1)
+    if len(args) > 1 and args[1].startswith("webapp_"):
+        message_id = args[1].replace("webapp_", "")
+        webapp_url = f"{WEBAPP_URL}/{message_id}"
+        keyboard = InlineKeyboardBuilder()
+        keyboard.row(
+            InlineKeyboardButton(
+                text="🌐 Открыть мини-приложение",
+                web_app=WebAppInfo(url=webapp_url)
+            )
+        )
+        await message.answer(
+            "Нажмите кнопку ниже, чтобы открыть мини-приложение:",
+            reply_markup=keyboard.as_markup()
+        )
+        return
     await message.answer(
         "👋 Привет! Я бот для разделения чеков.\n\n"
         "📸 Отправь мне фото чека, и я помогу разделить его между участниками.\n\n"
