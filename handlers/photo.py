@@ -181,8 +181,7 @@ async def process_receipt_photo(message: Message, state: FSMContext):
         # Создаем клавиатуру
         keyboard = create_receipt_keyboard(
             processing_message.message_id,
-            message.chat.type,
-            empty_user_counts={}
+            message.chat.type
         )
         
         # Отправляем итоговое сообщение
