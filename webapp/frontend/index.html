@@ -767,28 +767,47 @@
             
             try {
                 debugInfo.innerHTML += `Отправка выбора: ${JSON.stringify(selectedItems)}<br>`;
+                console.log('[confirmSelection] selectedItems:', selectedItems);
                 
-                // Выбор уже автоматически сохранен, но обновим его еще раз для уверенности
-                // Преобразуем userId в строку для отправки
+                // Всегда преобразуем userId в строку для отправки
                 const userIdStr = String(userId);
+                console.log(`[DEBUG] Saving for user ID (string): ${userIdStr}`);
                 
-                const response = await fetch(`${API_BASE_URL}/api/selection/${messageId}`, {
+                // Сохраняем выбор на сервере
+                const url = `${API_BASE_URL}/api/selection/${messageId}`;
+                console.log(`[DEBUG] Saving to URL: ${url}`);
+                
+                const requestBody = {
+                    user_id: userIdStr,
+                    selected_items: selectedItems
+                };
+                console.log('[DEBUG] Request payload:', requestBody);
+                
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        user_id: userIdStr,
-                        selected_items: selectedItems
-                    })
+                    body: JSON.stringify(requestBody)
                 });
-                
+                debugInfo.innerHTML += `[fetch] Статус ответа: ${response.status}<br>`;
+                console.log('[fetch] Response status:', response.status);
                 if (!response.ok) {
+                    const errorText = await response.text();
+                    debugInfo.innerHTML += `<span style="color: red;">Ошибка HTTP: ${response.status} - ${errorText}</span><br>`;
+                    console.error('[fetch] Ошибка HTTP:', response.status, errorText);
+                    alert(`Ошибка HTTP: ${response.status} - ${errorText}`);
                     throw new Error(`Ошибка HTTP: ${response.status}`);
                 }
-                
                 const responseData = await response.json();
-                debugInfo.innerHTML += `Выбор сохранен на сервере: ${JSON.stringify(responseData)}<br>`;
+                debugInfo.innerHTML += `[fetch] Ответ сервера: ${JSON.stringify(responseData)}<br>`;
+                console.log('[fetch] Response data:', responseData);
+                
+                // Показываем уведомление о сохранении
+                showSaveNotification();
+                
+                // Тихое обновление отладочной информации без оповещения пользователя
+                debugInfo.innerHTML += `<span style="color: green;">Выбор автоматически сохранен</span><br>`;
                 
                 // Отправляем данные обратно в Telegram
                 if (tg) {
@@ -797,29 +816,23 @@
                         selected_items: selectedItems
                     });
                     debugInfo.innerHTML += `Отправка данных в Telegram: ${dataToSend}<br>`;
-                    console.log('Отправляемые данные в Telegram:', dataToSend);
-                    
-                    // Проверяем доступность метода sendData
-                    if (typeof tg.sendData !== 'function') {
-                        debugInfo.innerHTML += `<span style="color: red;">Ошибка: метод tg.sendData не является функцией</span><br>`;
-                        alert('Ошибка: метод tg.sendData недоступен. Возможно, WebApp не инициализирован правильно.');
-                        return;
-                    }
-                    
-                    // Отправляем данные и показываем сообщение
+                    console.log('[tg.sendData] Отправляемые данные:', dataToSend);
                     try {
-                        // Устанавливаем текст кнопки
                         if (tg.MainButton) {
                             tg.MainButton.setText('Отправка...');
                             tg.MainButton.onClick(() => {
+                                debugInfo.innerHTML += '[tg.sendData] Нажата MainButton, отправка данных...<br>';
+                                console.log('[tg.sendData] MainButton click, sending data...');
                                 tg.sendData(dataToSend);
                             });
                             tg.MainButton.show();
                         } else {
-                            // Если MainButton недоступен, отправляем напрямую
+                            debugInfo.innerHTML += '[tg.sendData] Отправка напрямую через tg.sendData<br>';
+                            console.log('[tg.sendData] Отправка напрямую через tg.sendData');
                             tg.sendData(dataToSend);
                         }
-                        debugInfo.innerHTML += `Данные отправлены в Telegram<br>`;
+                        debugInfo.innerHTML += '[tg.sendData] Данные отправлены в Telegram<br>';
+                        console.log('[tg.sendData] Данные отправлены в Telegram');
                         
                         // Обновляем сообщение пользователю
                         messageDiv.innerHTML = 'Ваш выбор успешно отправлен! Проверьте сообщение в чате с ботом.';
@@ -835,15 +848,17 @@
                         }
                     } catch (e) {
                         debugInfo.innerHTML += `<span style="color: red;">Ошибка при отправке данных: ${e.message}</span><br>`;
+                        console.error('[tg.sendData] Ошибка при отправке данных:', e);
+                        alert('Ошибка при отправке данных: ' + e.message);
                         throw e;
                     }
                 } else {
                     alert('Выбор сохранен, но Telegram WebApp недоступен. Данные: ' + JSON.stringify(selectedItems));
                 }
             } catch (error) {
-                console.error('Ошибка при сохранении выбора:', error);
-                debugInfo.innerHTML += `<span style="color: red;">Ошибка при сохранении выбора: ${error.message}</span><br>`;
-                alert('Произошла ошибка при сохранении выбора');
+                console.error('[confirmSelection] Ошибка при сохранении выбора:', error);
+                debugInfo.innerHTML += `<span style="color: red;">[confirmSelection] Ошибка: ${error.message}</span><br>`;
+                alert('Произошла ошибка при сохранении выбора: ' + error.message);
             }
         }
         
