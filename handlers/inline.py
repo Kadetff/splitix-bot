@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from aiogram import Router, F
 from aiogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessageContent
 from aiogram.enums import ChatType
@@ -13,7 +13,7 @@ router = Router()
 @router.inline_query()
 async def process_inline_query(query: InlineQuery):
     """Обработчик инлайн-запросов."""
-    start_time = datetime.utcnow()
+    start_time = datetime.now(UTC)
     
     try:
         # Получаем имя бота
@@ -66,7 +66,7 @@ async def process_inline_query(query: InlineQuery):
         await query.answer(results, cache_time=300)  # Кэшируем на 5 минут
         
         # Логируем успешное выполнение
-        elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        elapsed_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
         log_event(
             event_type="inline_query",
             user_id=query.from_user.id,
@@ -77,7 +77,7 @@ async def process_inline_query(query: InlineQuery):
         
     except Exception as e:
         # Логируем ошибку
-        elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        elapsed_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
         log_event(
             event_type="inline_query_error",
             user_id=query.from_user.id,
