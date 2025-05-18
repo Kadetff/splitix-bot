@@ -1,7 +1,8 @@
 import json
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, Update, InlineKeyboardButton, InlineKeyboardBuilder
+from aiogram.types import Message, Update, InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from handlers.photo import ReceiptStates
 from handlers.callbacks import handle_confirm_selection
@@ -24,7 +25,6 @@ async def handle_all_messages(message: Message, state: FSMContext):
     # Проверяем наличие web_app_data
     if hasattr(message, 'web_app_data') and message.web_app_data:
         logger.info(f"Обнаружены данные WebApp: {message.web_app_data.data}")
-        # Перенаправляем на обработчик WebApp данных
         await handle_webapp_data(message, state)
         return
     
@@ -40,24 +40,14 @@ async def handle_all_messages(message: Message, state: FSMContext):
     # Проверяем, есть ли в сообщении JSON-данные
     if hasattr(message, 'text') and message.text:
         try:
-            # Попробуем распарсить текст как JSON
-            try_parse = json.loads(message.text)
-            logger.info(f"Сообщение содержит JSON: {message.text}")
-            
-            # Проверяем, содержит ли JSON данные messageId и selectedItems
-            if 'messageId' in try_parse and 'selectedItems' in try_parse:
+            data = json.loads(message.text)
+            if isinstance(data, dict) and 'messageId' in data and 'selectedItems' in data:
                 logger.info(f"Найдены данные WebApp в тексте сообщения: {message.text}")
-                
                 # Создаем временные данные для обработки
                 class WebAppData:
                     def __init__(self, data):
-                        self.data = data
-                
-                # Добавляем web_app_data к сообщению
-                message.web_app_data = WebAppData(message.text)
-                
-                # Перенаправляем на обработку в handle_webapp_data
-                logger.info("Перенаправляем на обработку в handle_webapp_data")
+                        self.data = json.dumps(data)
+                message.web_app_data = WebAppData(data)
                 await handle_webapp_data(message, state)
                 return
         except json.JSONDecodeError:
@@ -71,7 +61,6 @@ async def handle_webapp_data(message: Message, state: FSMContext):
     """Обработчик данных, полученных от веб-приложения"""
     try:
         logger.debug(f"Получен объект сообщения: {message}")
-        logger.info(f"Получены данные от веб-приложения: {getattr(message.web_app_data, 'data', 'None')}")
         
         # Проверяем наличие данных
         if not hasattr(message, 'web_app_data') or not message.web_app_data:
@@ -81,6 +70,7 @@ async def handle_webapp_data(message: Message, state: FSMContext):
             
         # Получаем данные
         webapp_data = message.web_app_data.data
+        logger.info(f"Получены данные от веб-приложения: {webapp_data}")
         
         # Проверяем, что данные не пустые
         if not webapp_data:
@@ -93,14 +83,6 @@ async def handle_webapp_data(message: Message, state: FSMContext):
         logger.debug(f"Распарсенные данные: {data}")
         
         message_id = data.get('messageId')
-        # Преобразуем messageId в int, если это строка
-        if isinstance(message_id, str):
-            try:
-                message_id = int(message_id)
-                logger.debug(f"messageId преобразован из строки в число: {message_id}")
-            except ValueError:
-                logger.error(f"Не удалось преобразовать messageId '{message_id}' в число")
-        
         selected_items = data.get('selectedItems', {})
         
         logger.debug(f"message_id: {message_id}, тип: {type(message_id)}")
@@ -166,6 +148,9 @@ async def handle_webapp_data(message: Message, state: FSMContext):
         for idx_str, count in selected_items.items():
             if count > 0:
                 idx = int(idx_str)
+                if idx >= len(items):
+                    continue
+                    
                 item = items[idx]
                 description = item.get("description", "N/A")
                 
@@ -250,9 +235,6 @@ async def handle_webapp_data(message: Message, state: FSMContext):
             "✅ Ваш выбор подтвержден и сохранен! Теперь каждый участник может сделать свой выбор независимо.",
             reply_markup=keyboard.as_markup()
         )
-        
-        # Не очищаем состояние FSM, чтобы другие пользователи могли сделать свой выбор
-        # await state.clear()
         
     except json.JSONDecodeError as e:
         logger.error(f"Ошибка при парсинге JSON из веб-приложения: {e}")
