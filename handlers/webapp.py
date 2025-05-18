@@ -58,53 +58,39 @@ async def handle_all_messages(message: Message, state: FSMContext):
 
 @router.message(F.web_app_data)
 async def handle_webapp_data(message: Message, state: FSMContext):
-    """Обработчик данных от WebApp"""
+    logger.info('=== Вызван handle_webapp_data ===')
     try:
-        logger.info(f"Получены данные от WebApp: {message.web_app_data.data}")
-        
+        logger.info(f"Получены данные от WebApp: {getattr(message.web_app_data, 'data', None)} | message: {message}")
         # Парсим JSON данные
         try:
             data = json.loads(message.web_app_data.data)
-            logger.debug(f"Распарсенные данные: {data}")
+            logger.info(f"[handle_webapp_data] Распарсенные данные: {data}")
         except json.JSONDecodeError as e:
-            logger.error(f"Ошибка при парсинге JSON: {e}")
+            logger.error(f"[handle_webapp_data] Ошибка при парсинге JSON: {e}")
             await message.answer("❌ Ошибка при обработке данных. Пожалуйста, попробуйте еще раз.")
             return
-
-        # Получаем message_id и выбранные позиции
         message_id = data.get('message_id')
         selected_items = data.get('selected_items', [])
-        
+        logger.info(f"[handle_webapp_data] message_id: {message_id}, selected_items: {selected_items}")
         if not message_id or not selected_items:
-            logger.error(f"Отсутствуют обязательные поля: message_id={message_id}, selected_items={selected_items}")
+            logger.error(f"[handle_webapp_data] Отсутствуют обязательные поля: message_id={message_id}, selected_items={selected_items}")
             await message.answer("❌ Ошибка: отсутствуют необходимые данные. Пожалуйста, попробуйте еще раз.")
             return
-
-        # Получаем текущее состояние
         state_data = await state.get_data()
+        logger.info(f"[handle_webapp_data] state_data: {state_data}")
         if not state_data:
-            logger.error("Состояние не найдено")
+            logger.error("[handle_webapp_data] Состояние не найдено")
             await message.answer("❌ Ошибка: сессия истекла. Пожалуйста, начните заново.")
             return
-
-        # Обновляем выбранные позиции
         state_data['selected_items'] = selected_items
-        
-        # Пересчитываем итоги
         total = sum(item['price'] for item in selected_items)
         state_data['total'] = total
-        
-        # Сохраняем обновленное состояние
         await state.update_data(**state_data)
-        
-        # Отправляем подтверждение в WebApp
         try:
             await message.answer("messageSent")
-            logger.debug("Отправлено подтверждение в WebApp")
+            logger.info("[handle_webapp_data] Отправлено подтверждение в WebApp")
         except Exception as e:
-            logger.error(f"Ошибка при отправке подтверждения в WebApp: {e}")
-        
-        # Отправляем сообщение с итогами
+            logger.error(f"[handle_webapp_data] Ошибка при отправке подтверждения в WebApp: {e}")
         items_text = "\n".join([f"• {item['name']} - {item['price']}₽" for item in selected_items])
         await message.answer(
             f"✅ Ваш выбор сохранен!\n\n"
@@ -114,9 +100,7 @@ async def handle_webapp_data(message: Message, state: FSMContext):
                 [InlineKeyboardButton(text="Посмотреть результаты всех участников", callback_data="show_results")]
             ])
         )
-        
-        logger.info(f"Данные от WebApp успешно обработаны для пользователя {message.from_user.id}")
-        
+        logger.info(f"[handle_webapp_data] Данные успешно обработаны для пользователя {message.from_user.id}")
     except Exception as e:
-        logger.error(f"Ошибка при обработке данных от WebApp: {e}")
+        logger.error(f"[handle_webapp_data] Ошибка при обработке данных: {e}")
         await message.answer("❌ Произошла ошибка при обработке данных. Пожалуйста, попробуйте еще раз.") 
