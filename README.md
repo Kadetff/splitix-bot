@@ -47,41 +47,48 @@ python main.py
 ```
 split_check/
 ├── .env                       # Конфигурация (токены, ключи)
-├── .gitignore                # Игнорируемые файлы
-├── README.md                 # Документация проекта
-├── requirements.txt          # Зависимости
-├── Procfile                  # Конфигурация для Heroku
-├── main.py                   # Точка входа для бота
-├── run_webapp.py             # Запуск веб-приложения
-├── app_env/                  # Виртуальное окружение
+├── .gitignore                 # Игнорируемые файлы
+├── README.md                  # Документация проекта
+├── requirements.txt           # Зависимости
+├── Procfile                   # Конфигурация для Heroku
+├── main.py                    # Точка входа для Telegram-бота
+├── run_webapp.py              # Запуск Flask-сервера для webapp
 ├── config/
 │   ├── __init__.py
-│   └── settings.py           # Настройки приложения
-├── credentials/              # Хранение учетных данных
-├── handlers/
+│   └── settings.py            # Настройки приложения
+├── handlers/                  # Обработчики событий Telegram
 │   ├── __init__.py
-│   ├── photo.py              # Обработчики фотографий
-│   ├── callbacks.py          # Обработчики callback-запросов
-│   ├── commands.py           # Обработчики команд
-│   ├── webapp.py             # Обработчики данных из веб-приложения
-│   └── inline.py             # Обработчики inline-запросов
+│   ├── photo.py               # Фото и OCR чеков
+│   ├── callbacks.py           # Callback-кнопки и подтверждения
+│   ├── commands.py            # Команды /start, /help, /split
+│   ├── webapp.py              # Интеграция с Mini App
+│   └── inline.py              # Inline-режим Telegram
 ├── models/
 │   ├── __init__.py
-│   └── receipt.py            # Модели данных для чеков
+│   └── receipt.py             # Модели данных чеков
 ├── services/
 │   ├── __init__.py
-│   ├── openai_service.py     # Работа с OpenAI API
-│   └── receipt_service.py    # Обработка чеков
+│   ├── openai_service.py      # Работа с OpenAI Vision
+│   └── receipt_service.py     # Бизнес-логика чеков
 ├── utils/
 │   ├── __init__.py
-│   ├── keyboards.py          # Клавиатуры
-│   └── helpers.py            # Вспомогательные функции
-└── webapp/                   # Веб-приложение для выбора позиций
-    ├── index.html            # Главная страница веб-приложения
-    ├── server.py             # Серверная часть веб-приложения
-    └── data/                 # Папка для хранения данных
-        └── receipt_data.json # Сохраненные данные о чеках и выборах пользователей
+│   ├── keyboards.py           # Генерация клавиатур
+│   ├── helpers.py             # Вспомогательные функции
+│   ├── calculations.py        # Расчёты итогов и скидок
+│   ├── formatters.py          # Форматирование сообщений
+│   ├── state.py               # Управление состоянием FSM
+│   └── logging.py             # Структурное логирование
+└── webapp/                    # Mini App (Telegram WebApp)
+    ├── index.html             # Фронтенд Mini App
+    ├── server.py              # Flask backend для Mini App
+    └── data/
+        └── receipt_data.json  # Данные о чеках и выборах пользователей
 ```
+
+- Все бизнес-правила и интеграции вынесены в отдельные сервисы и utils.
+- Вся логика Telegram-бота разделена по handler'ам: команды, фото, callbacks, webapp.
+- Mini App (webapp/) полностью изолирован, взаимодействует с ботом через API.
+- Для подробной архитектуры и API см. файл `.cursor/memory/spec.md`.
 
 ## Описание ключевых компонентов
 
