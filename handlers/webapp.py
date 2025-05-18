@@ -1,7 +1,7 @@
 import json
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, InlineKeyboardButton
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from utils.state import message_state
@@ -58,99 +58,65 @@ async def handle_all_messages(message: Message, state: FSMContext):
 
 @router.message(F.web_app_data)
 async def handle_webapp_data(message: Message, state: FSMContext):
-    """Обработчик данных, полученных от веб-приложения"""
+    """Обработчик данных от WebApp"""
     try:
-        logger.debug(f"Начало обработки данных WebApp. Сообщение: {message}")
+        logger.info(f"Получены данные от WebApp: {message.web_app_data.data}")
         
-        # Получаем данные
-        webapp_data = None
-        if hasattr(message, 'web_app_data') and message.web_app_data:
-            webapp_data = message.web_app_data.data
-            logger.debug(f"Получены данные из web_app_data: {webapp_data}")
-        elif hasattr(message, 'text') and message.text:
-            try:
-                data = json.loads(message.text)
-                if isinstance(data, dict) and 'messageId' in data and 'selectedItems' in data:
-                    webapp_data = message.text
-                    logger.debug(f"Получены данные из text: {webapp_data}")
-            except json.JSONDecodeError:
-                pass
-        
-        if not webapp_data:
-            logger.error("Не удалось получить данные из сообщения")
-            await message.answer("❌ Не удалось получить данные из мини-приложения. Пожалуйста, попробуйте снова.")
-            return
-        
-        # Парсим JSON-данные
+        # Парсим JSON данные
         try:
-            data = json.loads(webapp_data)
+            data = json.loads(message.web_app_data.data)
             logger.debug(f"Распарсенные данные: {data}")
         except json.JSONDecodeError as e:
             logger.error(f"Ошибка при парсинге JSON: {e}")
-            await message.answer("❌ Ошибка при обработке данных. Пожалуйста, попробуйте снова.")
+            await message.answer("❌ Ошибка при обработке данных. Пожалуйста, попробуйте еще раз.")
             return
-            
-        message_id = data.get('messageId')
-        selected_items = data.get('selectedItems', {})
+
+        # Получаем message_id и выбранные позиции
+        message_id = data.get('message_id')
+        selected_items = data.get('selected_items', [])
         
-        if not message_id:
-            logger.error("Отсутствует messageId в данных")
-            await message.answer("❌ Не удалось обработать выбор: отсутствует идентификатор сообщения.")
+        if not message_id or not selected_items:
+            logger.error(f"Отсутствуют обязательные поля: message_id={message_id}, selected_items={selected_items}")
+            await message.answer("❌ Ошибка: отсутствуют необходимые данные. Пожалуйста, попробуйте еще раз.")
             return
-        
-        logger.debug(f"Обработка данных для message_id: {message_id}, selected_items: {selected_items}")
-        
-        # Получаем состояние
-        state_data = message_state.get_state(int(message_id))
+
+        # Получаем текущее состояние
+        state_data = await state.get_data()
         if not state_data:
-            logger.error(f"Не найдено состояние для message_id: {message_id}")
-            await message.answer("❌ Не удалось обработать выбор из веб-приложения. Попробуйте еще раз.")
+            logger.error("Состояние не найдено")
+            await message.answer("❌ Ошибка: сессия истекла. Пожалуйста, начните заново.")
             return
+
+        # Обновляем выбранные позиции
+        state_data['selected_items'] = selected_items
         
-        user_id = message.from_user.id
-        logger.debug(f"Обработка выбора для user_id: {user_id}")
+        # Пересчитываем итоги
+        total = sum(item['price'] for item in selected_items)
+        state_data['total'] = total
         
-        # Обновляем выбор пользователя
-        if 'user_selections' not in state_data:
-            state_data['user_selections'] = {}
-        # Преобразуем ключи и значения к строкам и int
-        state_data['user_selections'][user_id] = {str(idx): int(count) for idx, count in selected_items.items()}
+        # Сохраняем обновленное состояние
+        await state.update_data(**state_data)
         
-        # Расчёт и форматирование итогов
-        user_counts = state_data['user_selections'][user_id]
-        total_sum, summary = calculate_total_with_charges(
-            items=state_data.get("items", []),
-            user_counts=user_counts,
-            service_charge_percent=state_data.get("service_charge_percent"),
-            actual_discount_percent=state_data.get("actual_discount_percent"),
-            total_discount_amount=state_data.get("total_discount_amount")
-        )
-        username = message.from_user.username or message.from_user.first_name
-        formatted_summary = format_user_summary(username, state_data["items"], user_counts, total_sum, summary)
+        # Отправляем подтверждение в WebApp
+        try:
+            await message.answer("messageSent")
+            logger.debug("Отправлено подтверждение в WebApp")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке подтверждения в WebApp: {e}")
         
-        # Сохраняем результат
-        if "user_results" not in state_data:
-            state_data["user_results"] = {}
-        state_data["user_results"][user_id] = {
-            "summary": formatted_summary,
-            "total_sum": float(total_sum),
-            "selected_items": {str(idx): count for idx, count in user_counts.items() if count > 0}
-        }
-        
-        logger.debug(f"Отправка итогового сообщения для user_id: {user_id}")
-        
-        # Отправляем итоговое сообщение в чат
-        await message.answer(formatted_summary, parse_mode="HTML")
-        
-        # Кнопка для просмотра всех результатов
-        keyboard = InlineKeyboardBuilder()
-        keyboard.row(InlineKeyboardButton(text="👥 Посмотреть итоги всех участников", callback_data="show_all_results"))
+        # Отправляем сообщение с итогами
+        items_text = "\n".join([f"• {item['name']} - {item['price']}₽" for item in selected_items])
         await message.answer(
-            "✅ Ваш выбор подтвержден и сохранен! Теперь каждый участник может сделать свой выбор независимо.",
-            reply_markup=keyboard.as_markup()
+            f"✅ Ваш выбор сохранен!\n\n"
+            f"Выбранные позиции:\n{items_text}\n\n"
+            f"Итого: {total}₽",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="Посмотреть результаты всех участников", callback_data="show_results")]
+            ])
         )
         
-        logger.debug(f"Успешно обработаны данные WebApp для user_id: {user_id}")
+        logger.info(f"Данные от WebApp успешно обработаны для пользователя {message.from_user.id}")
+        
     except Exception as e:
-        logger.error(f"Ошибка при обработке данных из веб-приложения: {e}", exc_info=True)
-        await message.answer("❌ Произошла ошибка при обработке данных из веб-приложения.") 
+        logger.error(f"Ошибка при обработке данных от WebApp: {e}")
+        await message.answer("❌ Произошла ошибка при обработке данных. Пожалуйста, попробуйте еще раз.") 

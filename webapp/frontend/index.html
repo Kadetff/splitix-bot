@@ -240,6 +240,19 @@
         let tg = window.Telegram ? window.Telegram.WebApp : null;
         let isTelegramWebApp = !!tg;
         
+        // Добавляем обработчик событий от бота
+        if (tg) {
+            tg.onEvent('messageSent', function() {
+                debugInfo.innerHTML += `Получено подтверждение отправки сообщения от бота<br>`;
+                console.log('Получено подтверждение отправки сообщения от бота');
+            });
+            
+            tg.onEvent('messageError', function(error) {
+                debugInfo.innerHTML += `<span style="color: red;">Ошибка отправки сообщения: ${error}</span><br>`;
+                console.error('Ошибка отправки сообщения:', error);
+            });
+        }
+        
         // Отладочная информация
         const debugInfo = document.getElementById('debug-info');
         debugInfo.innerHTML = `
@@ -799,27 +812,14 @@
                         // Устанавливаем текст кнопки
                         if (tg.MainButton) {
                             tg.MainButton.setText('Отправка...');
+                            tg.MainButton.onClick(() => {
+                                tg.sendData(dataToSend);
+                            });
                             tg.MainButton.show();
+                        } else {
+                            // Если MainButton недоступен, отправляем напрямую
+                            tg.sendData(dataToSend);
                         }
-                        
-                        // Создаем видимый div с сообщением
-                        const messageDiv = document.createElement('div');
-                        messageDiv.style.position = 'fixed';
-                        messageDiv.style.top = '50%';
-                        messageDiv.style.left = '50%';
-                        messageDiv.style.transform = 'translate(-50%, -50%)';
-                        messageDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-                        messageDiv.style.color = 'white';
-                        messageDiv.style.padding = '20px';
-                        messageDiv.style.borderRadius = '10px';
-                        messageDiv.style.zIndex = '1000';
-                        messageDiv.style.textAlign = 'center';
-                        messageDiv.innerHTML = 'Отправка выбора в бот. Пожалуйста, не закрывайте окно.';
-                        document.body.appendChild(messageDiv);
-                        
-                        // Отправляем данные в Telegram
-                        debugInfo.innerHTML += `Вызываем tg.sendData с данными<br>`;
-                        tg.sendData(dataToSend);
                         debugInfo.innerHTML += `Данные отправлены в Telegram<br>`;
                         
                         // Обновляем сообщение пользователю
@@ -835,9 +835,8 @@
                             tg.MainButton.show();
                         }
                     } catch (e) {
-                        debugInfo.innerHTML += `<span style="color: red;">Ошибка при отправке данных в Telegram: ${e.message}</span><br>`;
-                        console.error('Ошибка при отправке данных в Telegram:', e);
-                        alert(`Ошибка при отправке данных: ${e.message}`);
+                        debugInfo.innerHTML += `<span style="color: red;">Ошибка при отправке данных: ${e.message}</span><br>`;
+                        throw e;
                     }
                 } else {
                     alert('Выбор сохранен, но Telegram WebApp недоступен. Данные: ' + JSON.stringify(selectedItems));
