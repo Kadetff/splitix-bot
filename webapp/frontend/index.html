@@ -825,21 +825,15 @@
                         // Обновляем сообщение пользователю
                         messageDiv.innerHTML = 'Ваш выбор успешно отправлен! Проверьте сообщение в чате с ботом.';
                         
-                        // Закрываем WebApp через 5 секунд (увеличиваем время ожидания)
-                        setTimeout(() => {
-                            if (tg.MainButton) {
-                                tg.MainButton.hide();
-                            }
-                            
-                            messageDiv.innerHTML = 'Закрытие приложения...';
-                            
-                            // Даем боту дополнительное время на обработку данных перед закрытием
-                            setTimeout(() => {
-                                document.body.removeChild(messageDiv);
-                                debugInfo.innerHTML += `Закрытие WebApp<br>`;
+                        // Не закрываем WebApp автоматически, пусть пользователь сам закроет его
+                        // после того как увидит сообщение от бота
+                        if (tg.MainButton) {
+                            tg.MainButton.setText('Закрыть');
+                            tg.MainButton.onClick(() => {
                                 tg.close();
-                            }, 3000);
-                        }, 5000);
+                            });
+                            tg.MainButton.show();
+                        }
                     } catch (e) {
                         debugInfo.innerHTML += `<span style="color: red;">Ошибка при отправке данных в Telegram: ${e.message}</span><br>`;
                         console.error('Ошибка при отправке данных в Telegram:', e);

@@ -60,27 +60,56 @@ async def handle_all_messages(message: Message, state: FSMContext):
 async def handle_webapp_data(message: Message, state: FSMContext):
     """Обработчик данных, полученных от веб-приложения"""
     try:
+        logger.debug(f"Начало обработки данных WebApp. Сообщение: {message}")
+        
         # Получаем данные
-        webapp_data = message.web_app_data.data if hasattr(message, 'web_app_data') else None
+        webapp_data = None
+        if hasattr(message, 'web_app_data') and message.web_app_data:
+            webapp_data = message.web_app_data.data
+            logger.debug(f"Получены данные из web_app_data: {webapp_data}")
+        elif hasattr(message, 'text') and message.text:
+            try:
+                data = json.loads(message.text)
+                if isinstance(data, dict) and 'messageId' in data and 'selectedItems' in data:
+                    webapp_data = message.text
+                    logger.debug(f"Получены данные из text: {webapp_data}")
+            except json.JSONDecodeError:
+                pass
+        
         if not webapp_data:
+            logger.error("Не удалось получить данные из сообщения")
             await message.answer("❌ Не удалось получить данные из мини-приложения. Пожалуйста, попробуйте снова.")
             return
         
         # Парсим JSON-данные
-        data = json.loads(webapp_data)
+        try:
+            data = json.loads(webapp_data)
+            logger.debug(f"Распарсенные данные: {data}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Ошибка при парсинге JSON: {e}")
+            await message.answer("❌ Ошибка при обработке данных. Пожалуйста, попробуйте снова.")
+            return
+            
         message_id = data.get('messageId')
         selected_items = data.get('selectedItems', {})
+        
         if not message_id:
+            logger.error("Отсутствует messageId в данных")
             await message.answer("❌ Не удалось обработать выбор: отсутствует идентификатор сообщения.")
             return
+        
+        logger.debug(f"Обработка данных для message_id: {message_id}, selected_items: {selected_items}")
         
         # Получаем состояние
         state_data = message_state.get_state(int(message_id))
         if not state_data:
+            logger.error(f"Не найдено состояние для message_id: {message_id}")
             await message.answer("❌ Не удалось обработать выбор из веб-приложения. Попробуйте еще раз.")
             return
         
         user_id = message.from_user.id
+        logger.debug(f"Обработка выбора для user_id: {user_id}")
+        
         # Обновляем выбор пользователя
         if 'user_selections' not in state_data:
             state_data['user_selections'] = {}
@@ -108,6 +137,8 @@ async def handle_webapp_data(message: Message, state: FSMContext):
             "selected_items": {str(idx): count for idx, count in user_counts.items() if count > 0}
         }
         
+        logger.debug(f"Отправка итогового сообщения для user_id: {user_id}")
+        
         # Отправляем итоговое сообщение в чат
         await message.answer(formatted_summary, parse_mode="HTML")
         
@@ -118,6 +149,8 @@ async def handle_webapp_data(message: Message, state: FSMContext):
             "✅ Ваш выбор подтвержден и сохранен! Теперь каждый участник может сделать свой выбор независимо.",
             reply_markup=keyboard.as_markup()
         )
+        
+        logger.debug(f"Успешно обработаны данные WebApp для user_id: {user_id}")
     except Exception as e:
         logger.error(f"Ошибка при обработке данных из веб-приложения: {e}", exc_info=True)
         await message.answer("❌ Произошла ошибка при обработке данных из веб-приложения.") 

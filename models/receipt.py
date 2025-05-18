@@ -1,6 +1,6 @@
 from decimal import Decimal
 from typing import Optional, List
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 class ReceiptItem(BaseModel):
     """Модель товарной позиции в чеке."""
@@ -11,8 +11,8 @@ class ReceiptItem(BaseModel):
     discount_percent: Optional[Decimal] = None
     discount_amount: Optional[Decimal] = None
 
-    @validator('quantity_from_openai', 'unit_price_from_openai', 'total_amount_from_openai', 
-               'discount_percent', 'discount_amount', pre=True)
+    @field_validator('quantity_from_openai', 'unit_price_from_openai', 'total_amount_from_openai', 
+               'discount_percent', 'discount_amount', mode='before')
     def parse_decimal(cls, v):
         """Конвертирует строки и числа в Decimal."""
         if v is None:
@@ -32,8 +32,8 @@ class Receipt(BaseModel):
     actual_discount_percent: Optional[Decimal] = None
     user_selections: dict = Field(default_factory=dict)
 
-    @validator('service_charge_percent', 'total_check_amount', 'total_discount_percent', 
-               'total_discount_amount', 'actual_discount_percent', pre=True)
+    @field_validator('service_charge_percent', 'total_check_amount', 'total_discount_percent', 
+               'total_discount_amount', 'actual_discount_percent', mode='before')
     def parse_decimal(cls, v):
         """Конвертирует строки и числа в Decimal."""
         if v is None:
