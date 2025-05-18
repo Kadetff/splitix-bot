@@ -8,11 +8,6 @@ def format_item_line(item: Dict[str, Any]) -> str:
     unit_price = item.get("unit_price_from_openai")
     total_amount = item.get("total_amount_from_openai")
     
-    if quantity == 1 and total_amount is not None and unit_price is not None:
-        price_diff = abs(total_amount - unit_price)
-        if price_diff > Decimal("0.01"):
-            return f"• {description}: {total_amount:.2f}\n"
-    
     if unit_price is not None:
         return f"• {description}: {unit_price:.2f} × {quantity} = {unit_price * quantity:.2f}\n"
     elif total_amount is not None:
@@ -43,3 +38,37 @@ def calculate_totals(items: List[Dict[str, Any]],
         actual_discount_percent = (total_discounts * Decimal("100") / total_items_cost).quantize(Decimal("0.01"))
     
     return calculated_total, service_charge_amount, actual_discount_percent 
+
+def format_user_summary(
+    username: str,
+    items: List[Dict[str, Any]],
+    user_counts: Dict[str, int],
+    total_sum: Decimal,
+    summary: str
+) -> str:
+    """Форматирует итоговое сообщение для пользователя."""
+    user_mention = f"@{username}" if username else "Пользователь"
+    return f"<b>{user_mention}, ваш выбор:</b>\n\n{summary}"
+
+def format_final_summary(
+    user_results: Dict[int, Dict[str, Any]],
+    usernames: Dict[int, str]
+) -> str:
+    """Форматирует финальный итог с результатами всех участников."""
+    summary = "<b>💸 Итог взаиморасчетов</b>\n\n"
+    
+    # Собираем данные о платежах
+    payments = []
+    for user_id, result in user_results.items():
+        username = usernames.get(user_id, f"Пользователь {user_id}")
+        total_sum = Decimal(str(result["total_sum"]))
+        payments.append((username, total_sum))
+    
+    # Сортируем по сумме (от большей к меньшей)
+    payments.sort(key=lambda x: x[1], reverse=True)
+    
+    # Формируем итог
+    for username, amount in payments:
+        summary += f"{username}: {amount:.2f}\n"
+    
+    return summary 
