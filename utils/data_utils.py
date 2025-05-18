@@ -97,4 +97,25 @@ def parse_possible_price(price_value: any) -> Decimal | None:
             return Decimal(cleaned_str)
         except InvalidOperation:
             return None
-    return None 
+    return None
+
+def parse_quantity(raw_quantity):
+    """
+    Преобразует количество из строки/числа в int (или 1 для весовых товаров).
+    """
+    if isinstance(raw_quantity, (int, float)):
+        if float(raw_quantity) != int(raw_quantity):
+            return 1
+        return int(raw_quantity)
+    elif isinstance(raw_quantity, str):
+        try:
+            q_str = raw_quantity.lower().replace("шт", "").replace("szt", "").strip()
+            cleaned = "".join(filter(lambda x: x.isdigit() or x == '.', q_str.split()[0]))
+            if cleaned:
+                parsed_q = float(cleaned)
+                if parsed_q != int(parsed_q):
+                    return 1
+                return int(parsed_q)
+        except Exception:
+            pass
+    return 1 
