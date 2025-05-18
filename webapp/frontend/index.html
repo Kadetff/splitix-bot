@@ -793,10 +793,9 @@
                 // Отправляем данные обратно в Telegram
                 if (tg) {
                     const dataToSend = JSON.stringify({
-                        messageId: messageId,
-                        selectedItems: selectedItems
+                        message_id: messageId,
+                        selected_items: selectedItems
                     });
-                    
                     debugInfo.innerHTML += `Отправка данных в Telegram: ${dataToSend}<br>`;
                     console.log('Отправляемые данные в Telegram:', dataToSend);
                     
