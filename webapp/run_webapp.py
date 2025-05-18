@@ -2,7 +2,7 @@ import os
 import logging
 import subprocess
 import sys
-from webapp.server import app
+from backend.server import app
 from config.settings import LOG_LEVEL
 
 # Настройка логирования
