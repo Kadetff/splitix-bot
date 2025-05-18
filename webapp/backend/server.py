@@ -12,6 +12,8 @@ from utils.data_utils import (
     add_metadata,
     validate_and_fix_user_selections
 )
+from models.receipt import Receipt, ReceiptItem
+from typing import Dict, Any
 
 # Получаем абсолютный путь к директории webapp
 webapp_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -124,23 +126,29 @@ def get_receipt_data(message_id):
         logger.warning(f"Receipt data not found for message_id: {message_id}")
         return jsonify({"error": "Receipt not found"}), 404
     
-    result_data = receipt_data[message_id_str].copy()
-    
-    if 'metadata' in result_data:
-        del result_data['metadata']
-    
-    if 'user_selections' in result_data and user_id:
-        user_id_str = str(user_id)
-        filtered_selections = {}
-        if user_id_str in result_data['user_selections']:
-            user_selections = result_data['user_selections'][user_id_str]
-            normalized_selections = {str(k): int(v) for k, v in user_selections.items()}
-            filtered_selections[user_id_str] = normalized_selections
-        result_data['user_selections'] = filtered_selections
-    else:
-        result_data['user_selections'] = {}
-    
-    return jsonify(result_data)
+    try:
+        # Создаем объект Receipt из данных
+        receipt = Receipt(**receipt_data[message_id_str])
+        result_data = receipt.model_dump()
+        
+        if 'metadata' in result_data:
+            del result_data['metadata']
+        
+        if 'user_selections' in result_data and user_id:
+            user_id_str = str(user_id)
+            filtered_selections = {}
+            if user_id_str in result_data['user_selections']:
+                user_selections = result_data['user_selections'][user_id_str]
+                normalized_selections = {str(k): int(v) for k, v in user_selections.items()}
+                filtered_selections[user_id_str] = normalized_selections
+            result_data['user_selections'] = filtered_selections
+        else:
+            result_data['user_selections'] = {}
+        
+        return jsonify(result_data)
+    except Exception as e:
+        logger.error(f"Ошибка при обработке данных чека: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/receipt/<int:message_id>', methods=['POST'])
 def save_receipt_data(message_id):
@@ -159,8 +167,9 @@ def save_receipt_data(message_id):
         if 'items' not in data:
             return jsonify({"error": "Missing required field 'items'"}), 400
         
-        data = add_metadata(data)
-        receipt_data[message_id_str] = data
+        # Валидируем данные через модель Receipt
+        receipt = Receipt(**data)
+        receipt_data[message_id_str] = receipt.model_dump()
         
         save_receipt_data_to_file()
         return jsonify({"success": True, "message": "Data saved successfully"})

@@ -52,8 +52,7 @@ split_check/
 ├── requirements.txt           # Зависимости
 ├── Procfile                   # Конфигурация для Heroku
 ├── main.py                    # Точка входа для Telegram-бота
-├── run_webapp.py              # Запуск Flask-сервера для webapp
-├── config/
+├── config/                    # Конфигурация приложения
 │   ├── __init__.py
 │   └── settings.py            # Настройки приложения
 ├── handlers/                  # Обработчики событий Telegram
@@ -63,14 +62,14 @@ split_check/
 │   ├── commands.py            # Команды /start, /help, /split
 │   ├── webapp.py              # Интеграция с Mini App
 │   └── inline.py              # Inline-режим Telegram
-├── models/
+├── models/                    # Модели данных
 │   ├── __init__.py
 │   └── receipt.py             # Модели данных чеков
-├── services/
+├── services/                  # Бизнес-логика
 │   ├── __init__.py
 │   ├── openai_service.py      # Работа с OpenAI Vision
 │   └── receipt_service.py     # Бизнес-логика чеков
-├── utils/
+├── utils/                     # Вспомогательные утилиты
 │   ├── __init__.py
 │   ├── keyboards.py           # Генерация клавиатур
 │   ├── helpers.py             # Вспомогательные функции
@@ -78,9 +77,16 @@ split_check/
 │   ├── formatters.py          # Форматирование сообщений
 │   ├── state.py               # Управление состоянием FSM
 │   └── logging.py             # Структурное логирование
-└── webapp/                    # Mini App (Telegram WebApp)
-    ├── index.html             # Фронтенд Mini App
-    ├── server.py              # Flask backend для Mini App
-    └── data/
-        └── receipt_data.json  # Данные о чеках и выборах пользователей
+├── webapp/                    # Mini App (Telegram WebApp)
+│   ├── README.md             # Документация WebApp
+│   ├── run_webapp.py         # Точка входа для запуска WebApp
+│   ├── backend/              # Backend часть (Flask)
+│   │   └── server.py         # Flask backend для Mini App
+│   ├── frontend/             # Frontend часть
+│   │   └── index.html        # Фронтенд Mini App
+│   └── data/                 # Данные приложения
+│       └── receipt_data.json # Данные о чеках и выборах пользователей
+├── docs/                      # Документация проекта
+├── credentials/               # Конфиденциальные данные
+└── app_env/                   # Переменные окружения
 ``` 

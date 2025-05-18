@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from openai import AsyncOpenAI
 from config.settings import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MAX_TOKENS
 from utils.data_utils import parse_possible_price, parse_quantity
+from models.receipt import Receipt, ReceiptItem
 
 logger = logging.getLogger(__name__)
 
@@ -60,104 +61,114 @@ def clean_openai_json_response(response_text: str) -> str:
     return text
 
 def extract_items_from_openai_response(parsed_json_data: dict) -> Tuple[Optional[List[Dict]], Optional[Decimal], Optional[Decimal], Optional[Decimal], Optional[Decimal]]:
-    """
-    Извлекает и нормализует данные о товарах и скидках из ответа OpenAI.
-    """
+    """Извлекает и нормализует данные о товарах и скидках из ответа OpenAI."""
     logger.info("Начало извлечения данных из ответа OpenAI.")
     if not parsed_json_data or "items" not in parsed_json_data or not isinstance(parsed_json_data["items"], list):
         logger.warning(f"Неожиданный формат JSON от OpenAI или нет ключа 'items': {parsed_json_data}")
         return None, None, None, None, None
-    processed_items = []
-    for item_data in parsed_json_data["items"]:
-        if isinstance(item_data, dict):
-            unit_price_dec = parse_possible_price(item_data.get("unit_price"))
-            total_amount_dec = parse_possible_price(item_data.get("total_amount"))
-            discount_percent_dec = parse_possible_price(item_data.get("discount_percent"))
-            discount_amount_dec = parse_possible_price(item_data.get("discount_amount"))
-            openai_quantity = parse_quantity(item_data.get("quantity", 1))
-            processed_items.append({
-                "description": str(item_data.get("description", "N/A")),
-                "quantity_from_openai": openai_quantity,
-                "unit_price_from_openai": unit_price_dec,
-                "total_amount_from_openai": total_amount_dec,
-                "discount_percent": discount_percent_dec,
-                "discount_amount": discount_amount_dec
-            })
-        else:
-            logger.warning(f"Найден элемент не-словарь в items: {item_data}")
-    # Сервисный сбор
-    service_charge = None
-    if "service_charge_percent" in parsed_json_data:
-        try:
-            service_charge = Decimal(str(parsed_json_data["service_charge_percent"]))
-        except (InvalidOperation, TypeError):
-            logger.warning(f"Не удалось распарсить service_charge_percent: {parsed_json_data.get('service_charge_percent')}")
-    # Итоговая сумма чека
-    total_check_amount = None
-    if "total_check_amount" in parsed_json_data:
-        try:
-            total_check_amount = Decimal(str(parsed_json_data["total_check_amount"]))
-        except (InvalidOperation, TypeError):
-            logger.warning(f"Не удалось распарсить total_check_amount: {parsed_json_data.get('total_check_amount')}")
-    # Скидки
-    total_discount_percent = None
-    total_discount_amount = None
-    if "total_discount_percent" in parsed_json_data:
-        try:
-            total_discount_percent = Decimal(str(parsed_json_data["total_discount_percent"]))
-        except (InvalidOperation, TypeError):
-            logger.warning(f"Не удалось распарсить total_discount_percent: {parsed_json_data.get('total_discount_percent')}")
-    if "total_discount_amount" in parsed_json_data:
-        try:
-            total_discount_amount = Decimal(str(parsed_json_data["total_discount_amount"]))
-        except (InvalidOperation, TypeError):
-            logger.warning(f"Не удалось распарсить total_discount_amount: {parsed_json_data.get('total_discount_amount')}")
-    logger.info(f"Извлечено {len(processed_items)} товаров из ответа OpenAI.")
-    logger.info(f"service_charge: {service_charge}; total_check_amount: {total_check_amount}; total_discount_amount: {total_discount_amount}; total_discount_percent: {total_discount_percent}")
-    return processed_items, service_charge, total_check_amount, total_discount_percent, total_discount_amount
+
+    try:
+        # Создаем объект Receipt из данных
+        receipt = Receipt(
+            items=[
+                ReceiptItem(
+                    description=item.get("description", "N/A"),
+                    quantity_from_openai=parse_quantity(item.get("quantity", 1)),
+                    unit_price_from_openai=parse_possible_price(item.get("unit_price")),
+                    total_amount_from_openai=parse_possible_price(item.get("total_amount")),
+                    discount_percent=parse_possible_price(item.get("discount_percent")),
+                    discount_amount=parse_possible_price(item.get("discount_amount"))
+                )
+                for item in parsed_json_data["items"]
+                if isinstance(item, dict)
+            ],
+            service_charge_percent=parsed_json_data.get("service_charge_percent"),
+            total_check_amount=parsed_json_data.get("total_check_amount"),
+            total_discount_percent=parsed_json_data.get("total_discount_percent"),
+            total_discount_amount=parsed_json_data.get("total_discount_amount")
+        )
+
+        # Конвертируем обратно в словари для совместимости
+        processed_items = [item.model_dump() for item in receipt.items]
+        
+        logger.info(f"Извлечено {len(processed_items)} товаров из ответа OpenAI.")
+        logger.info(f"service_charge: {receipt.service_charge_percent}; total_check_amount: {receipt.total_check_amount}; "
+                   f"total_discount_amount: {receipt.total_discount_amount}; total_discount_percent: {receipt.total_discount_percent}")
+        
+        return (
+            processed_items,
+            receipt.service_charge_percent,
+            receipt.total_check_amount,
+            receipt.total_discount_percent,
+            receipt.total_discount_amount
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при обработке данных чека: {e}", exc_info=True)
+        return None, None, None, None, None
+
+def prepare_openai_request(base64_image: str) -> dict:
+    """Подготавливает запрос к OpenAI Vision API."""
+    return {
+        "model": OPENAI_MODEL,
+        "temperature": 0,
+        "top_p": 1,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": RECEIPT_OCR_PROMPT},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}"
+                        }
+                    }
+                ]
+            }
+        ],
+        "max_tokens": OPENAI_MAX_TOKENS
+    }
+
+async def send_openai_request(request_params: dict) -> str:
+    """Отправляет запрос к OpenAI API и возвращает ответ."""
+    response = await client.chat.completions.create(**request_params)
+    return response.choices[0].message.content
+
+def parse_openai_response(response_text: str) -> Optional[dict]:
+    """Парсит ответ от OpenAI в JSON."""
+    try:
+        clean_text = clean_openai_json_response(response_text)
+        logger.info(f"Подготовленный текст для парсинга JSON: {clean_text[:100]}...")
+        parsed_json_data = json.loads(clean_text)
+        logger.info(f"JSON успешно распарсен, найдено товаров: {len(parsed_json_data.get('items', []))}")
+        return parsed_json_data
+    except json.JSONDecodeError as e:
+        logger.error(f"Ошибка при парсинге JSON от OpenAI: {e}")
+        logger.error(f"Полученный текст: {response_text}")
+        return None
 
 async def process_receipt_with_openai(image_data: bytes) -> Tuple[Optional[List[Dict]], Optional[Decimal], Optional[Decimal], Optional[Decimal], Optional[Decimal]]:
-    """
-    Отправляет изображение чека в OpenAI Vision, парсит и возвращает нормализованные данные.
-    """
+    """Отправляет изображение чека в OpenAI Vision, парсит и возвращает нормализованные данные."""
     try:
         base64_image = base64.b64encode(image_data).decode('utf-8')
         logger.info(f"Изображение закодировано, размер base64: {len(base64_image)} символов")
-        prompt = RECEIPT_OCR_PROMPT
+        
+        # Подготовка запроса
+        request_params = prepare_openai_request(base64_image)
         logger.info(f"Отправляем запрос на анализ изображения в OpenAI, используя модель: {OPENAI_MODEL}")
-        response = await client.chat.completions.create(
-            model=OPENAI_MODEL,
-            temperature=0,
-            top_p=1,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        }
-                    ]
-                }
-            ],
-            max_tokens=OPENAI_MAX_TOKENS
-        )
-        response_text = response.choices[0].message.content
+        
+        # Отправка запроса
+        response_text = await send_openai_request(request_params)
         logger.info(f"Получен ответ от OpenAI, длина текста: {len(response_text)} символов")
         logger.info(f"Полный ответ OpenAI:\n{response_text}")
-        try:
-            clean_text = clean_openai_json_response(response_text)
-            logger.info(f"Подготовленный текст для парсинга JSON: {clean_text[:100]}...")
-            parsed_json_data = json.loads(clean_text)
-            logger.info(f"JSON успешно распарсен, найдено товаров: {len(parsed_json_data.get('items', []))}")
-            return extract_items_from_openai_response(parsed_json_data)
-        except json.JSONDecodeError as e:
-            logger.error(f"Ошибка при парсинге JSON от OpenAI: {e}")
-            logger.error(f"Полученный текст: {response_text}")
+        
+        # Парсинг ответа
+        parsed_json_data = parse_openai_response(response_text)
+        if parsed_json_data is None:
             return None, None, None, None, None
+            
+        return extract_items_from_openai_response(parsed_json_data)
+        
     except Exception as e:
         logger.error(f"Ошибка при обработке чека через OpenAI: {e}", exc_info=True)
         return None, None, None, None, None 

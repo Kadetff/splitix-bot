@@ -10,6 +10,7 @@ from services.openai_service import process_receipt_with_openai
 from utils.keyboards import create_receipt_keyboard
 from utils.api import check_api_health, prepare_data_for_api
 from utils.formatters import format_item_line, calculate_totals
+from models.receipt import Receipt, ReceiptItem
 from typing import Dict, Any
 from config.settings import WEBAPP_URL
 
@@ -69,6 +70,15 @@ async def process_receipt_photo(message: Message, state: FSMContext):
             await state.clear()
             return
         
+        # Создаем объект Receipt
+        receipt = Receipt(
+            items=[ReceiptItem(**item) for item in items],
+            service_charge_percent=service_charge,
+            total_check_amount=total_check_amount,
+            total_discount_percent=total_discount_percent,
+            total_discount_amount=total_discount_amount
+        )
+        
         calculated_total, service_charge_amount, actual_discount_percent = calculate_totals(
             items, service_charge, total_discount_amount
         )
@@ -92,15 +102,8 @@ async def process_receipt_photo(message: Message, state: FSMContext):
                 response_msg_text += f"⚠️ Внимание: сумма в чеке ({total_check_amount:.2f}) не совпадает с расчетом ({calculated_total:.2f})\n"
         
         # Сохраняем данные
-        receipt_data = {
-            "items": items,
-            "user_selections": {},
-            "service_charge_percent": service_charge,
-            "total_check_amount": total_check_amount,
-            "total_discount_percent": total_discount_percent,
-            "total_discount_amount": total_discount_amount,
-            "actual_discount_percent": actual_discount_percent,
-        }
+        receipt_data = receipt.model_dump()
+        receipt_data["actual_discount_percent"] = actual_discount_percent
         
         message_states[processing_message.message_id] = receipt_data
         
