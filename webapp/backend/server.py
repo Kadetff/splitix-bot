@@ -10,7 +10,8 @@ from utils.data_utils import (
     save_json_data,
     is_data_expired,
     add_metadata,
-    validate_and_fix_user_selections
+    validate_and_fix_user_selections,
+    convert_decimals
 )
 from models.receipt import Receipt, ReceiptItem
 from typing import Dict, Any
@@ -129,7 +130,7 @@ def get_receipt_data(message_id):
     try:
         # Создаем объект Receipt из данных
         receipt = Receipt(**receipt_data[message_id_str])
-        result_data = receipt.model_dump()
+        result_data = convert_decimals(receipt.model_dump())
         
         if 'metadata' in result_data:
             del result_data['metadata']
@@ -169,7 +170,7 @@ def save_receipt_data(message_id):
         
         # Валидируем данные через модель Receipt
         receipt = Receipt(**data)
-        receipt_data[message_id_str] = receipt.model_dump()
+        receipt_data[message_id_str] = convert_decimals(receipt.model_dump())
         
         save_receipt_data_to_file()
         return jsonify({"success": True, "message": "Data saved successfully"})

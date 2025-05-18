@@ -3,6 +3,7 @@ import time
 import logging
 from typing import Dict, Any, Optional
 from decimal import Decimal, InvalidOperation
+import decimal
 
 logger = logging.getLogger(__name__)
 
@@ -118,4 +119,18 @@ def parse_quantity(raw_quantity):
                 return int(parsed_q)
         except Exception:
             pass
-    return 1 
+    return 1
+
+def convert_decimals(obj):
+    """
+    Рекурсивно преобразует все значения типа Decimal в float в любых структурах данных (dict, list, tuple).
+    Используется для корректной сериализации данных в JSON для фронтенда (JS),
+    чтобы избежать ошибок вида .toFixed is not a function (когда Decimal сериализуется как строка).
+    """
+    if isinstance(obj, list):
+        return [convert_decimals(i) for i in obj]
+    elif isinstance(obj, dict):
+        return {k: convert_decimals(v) for k, v in obj.items()}
+    elif isinstance(obj, decimal.Decimal):
+        return float(obj)
+    return obj 
