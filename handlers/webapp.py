@@ -1,12 +1,9 @@
 import json
 import logging
 from aiogram import Router, F
-from aiogram.types import Message, Update, InlineKeyboardButton
+from aiogram.types import Message, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
-from handlers.photo import ReceiptStates
-from handlers.callbacks import handle_confirm_selection
-from decimal import Decimal
 from utils.state import message_state
 from utils.calculations import calculate_total_with_charges
 from utils.formatters import format_user_summary

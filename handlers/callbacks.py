@@ -3,7 +3,6 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from handlers.photo import ReceiptStates
 from utils.calculations import calculate_total_with_charges
 from utils.formatters import format_user_summary, format_final_summary
 from utils.state import message_state
@@ -12,7 +11,7 @@ from handlers.commands import HELP_TEXT
 logger = logging.getLogger(__name__)
 router = Router()
 
-@router.callback_query(F.data == "confirm_selection", ReceiptStates.waiting_for_items_selection)
+@router.callback_query(F.data == "confirm_selection", FSMContext)
 async def handle_confirm_selection(callback: CallbackQuery, state: FSMContext):
     """Обработчик подтверждения выбора товаров из мини-приложения."""
     try:

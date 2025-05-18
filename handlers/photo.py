@@ -10,7 +10,7 @@ from services.openai_service import process_receipt_with_openai
 from utils.keyboards import create_receipt_keyboard
 from utils.api import check_api_health, prepare_data_for_api
 from utils.formatters import format_item_line, calculate_totals
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from config.settings import WEBAPP_URL
 
 logger = logging.getLogger(__name__)
