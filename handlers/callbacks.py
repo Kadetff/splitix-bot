@@ -7,6 +7,7 @@ from handlers.photo import ReceiptStates
 from utils.calculations import calculate_total_with_charges
 from utils.formatters import format_user_summary, format_final_summary
 from utils.state import message_state
+from handlers.commands import HELP_TEXT
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -101,19 +102,6 @@ async def handle_show_all_results(callback: CallbackQuery):
 
 @router.callback_query(F.data == "show_instructions")
 async def handle_instructions(callback: CallbackQuery):
-    """Показывает инструкцию по использованию бота."""
-    instructions = """
-🤖 *Как пользоваться ботом*
-
-1. Отправьте фото чека или используйте команду `/split` в групповом чате
-2. Дождитесь обработки чека
-3. Нажмите кнопку "🌐 Открыть в веб-интерфейсе"
-4. В открывшемся окне отметьте свои позиции
-5. Нажмите "Подтвердить" для завершения выбора
-
-*В групповом чате:*
-- Каждый участник отмечает свои позиции в личном чате с ботом
-- После распределения всех позиций бот рассчитает взаиморасчеты
-"""
-    await callback.message.answer(instructions, parse_mode="Markdown")
+    """Показывает инструкцию по использованию бота (тот же текст, что и /help)."""
+    await callback.message.answer(HELP_TEXT)
     await callback.answer() 
