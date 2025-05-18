@@ -137,5 +137,3 @@ async def handle_photo(message: Message, state: FSMContext):
     # В групповом чате только после команды /split
     elif current_state == ReceiptStates.waiting_for_photo:
         await process_receipt_photo(message, state)
-    else:
-        await message.answer("Пожалуйста, используйте команду /split для начала разделения чека.") 
