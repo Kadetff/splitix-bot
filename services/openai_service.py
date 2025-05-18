@@ -4,7 +4,7 @@ import base64
 from decimal import Decimal, InvalidOperation
 from openai import AsyncOpenAI
 from config.settings import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_MAX_TOKENS
-from utils.helpers import parse_possible_price
+from utils.data_utils import parse_possible_price
 
 logger = logging.getLogger(__name__)
 
