@@ -215,6 +215,23 @@
         // Инициализация Telegram WebApp
         let tg = window.Telegram ? window.Telegram.WebApp : null;
         let isTelegramWebApp = !!tg;
+
+        // Получаем данные из Telegram WebApp СРАЗУ и проверяем их
+        let initData = tg ? tg.initData || '' : '';
+        let initDataUnsafe = tg ? tg.initDataUnsafe || {} : {};
+        
+        // Проверка наличия initData ДОЛЖНА БЫТЬ ЗДЕСЬ, В САМОМ НАЧАЛЕ
+        if (!initData && isTelegramWebApp) { 
+            console.error('[CRITICAL] initData отсутствует. Приложение не может работать корректно.');
+            document.body.innerHTML = '<div class="error" style="padding: 20px; text-align: center;">Критическая ошибка: Данные для инициализации приложения (initData) отсутствуют. Пожалуйста, попробуйте открыть приложение снова через кнопку в Telegram. Если проблема повторяется, это может быть связано с вашим клиентом Telegram или настройками бота.</div>';
+            // Остановка выполнения, т.к. без initData приложение бесполезно
+            throw new Error("initData is missing, cannot proceed."); 
+        } else if (isTelegramWebApp) {
+            console.log('[DEBUG] initData (проверено в начале):', initData ? 'Присутствует (длина: ' + initData.length + ')' : 'Отсутствует');
+            console.log('[DEBUG] initDataUnsafe (проверено в начале):', JSON.stringify(initDataUnsafe));
+        } else {
+            console.log('[DEBUG] Не в окружении Telegram WebApp (isTelegramWebApp=false). initData не ожидается.');
+        }
         
         // Глобальная переменная для ID таймаута
         let telegramResponseTimeoutId = null;
@@ -339,6 +356,7 @@
         
         // Отладочная информация
         const debugInfo = document.getElementById('debug-info');
+        // Первичное заполнение debugInfo без initData, т.к. он может быть недоступен при прямом открытии URL
         debugInfo.innerHTML = `
             <strong>Отладочная информация:</strong><br>
             Telegram WebApp доступен: ${isTelegramWebApp}<br>
@@ -346,18 +364,17 @@
             API URL: ${API_BASE_URL}<br>
         `;
         
-        // Если Telegram WebApp доступен, расширяем окно
-        if (tg) {
-            tg.expand();
+        // Если Telegram WebApp доступен и initData был получен, добавляем его в debugInfo
+        // Этот блок if(tg) был здесь ранее и добавлял initData в debugInfo, но мы перенесли логику initData выше.
+        // Теперь мы просто добавим его в debugInfo, если он есть.
+        if (isTelegramWebApp && initData) { // Используем уже проверенный initData
+            // tg.expand() уже вызывался в самом первом блоке if(tg), если он был.
+            // Дублирующий tg.expand() здесь не нужен и удален.
             debugInfo.innerHTML += `
-                initData: ${tg.initData ? 'доступен' : 'недоступен'}<br>
-                initDataUnsafe: ${tg.initDataUnsafe ? JSON.stringify(tg.initDataUnsafe) : 'недоступен'}<br>
+                initData: доступен (проверено)<br>
+                initDataUnsafe: ${JSON.stringify(initDataUnsafe)} (проверено)<br>
             `;
         }
-        
-        // Получаем данные из Telegram WebApp
-        let initData = tg ? tg.initData || '' : '';
-        let initDataUnsafe = tg ? tg.initDataUnsafe || {} : {};
         
         // Переменные для хранения данных
         let items = [];
@@ -370,13 +387,20 @@
         function initApp() {
             // Пытаемся получить данные из Telegram WebApp
             try {
-                if (isTelegramWebApp && initDataUnsafe) {
-                    // Получаем ID пользователя
-                    if (initDataUnsafe.user) {
-                        userId = initDataUnsafe.user.id;
-                        debugInfo.innerHTML += `user_id: ${userId}<br>`;
-                    }
-                    
+                // Важно: Убедимся, что userId извлекается ПОСЛЕ проверки initData
+                if (isTelegramWebApp && initDataUnsafe && initDataUnsafe.user) {
+                    userId = initDataUnsafe.user.id;
+                    console.log(`[DEBUG] UserId из initDataUnsafe: ${userId}`);
+                    debugInfo.innerHTML += `user_id: ${userId}<br>`;
+                } else if (isTelegramWebApp) {
+                    // Если initDataUnsafe.user нет, но initData был (хотя это странно, если user отсутствует)
+                    // или если initData вообще не было, это уже должно было быть обработано выше.
+                    console.warn('[WARN] Не удалось извлечь userId из initDataUnsafe.user');
+                    // Можно показать ошибку, если userId критичен для загрузки данных с сервера без message_id
+                }
+
+                if (isTelegramWebApp && initDataUnsafe) { // initDataUnsafe уже проверен выше
+                    // Получаем ID пользователя - уже сделано выше
                     // Пытаемся получить message_id из пути URL
                     const pathParts = window.location.pathname.split('/');
                     const lastPathPart = pathParts[pathParts.length - 1];
