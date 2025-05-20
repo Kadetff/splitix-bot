@@ -769,8 +769,16 @@
         
         // Функция для отправки данных в Telegram
         async function sendDataToTelegram(selectedItems) {
+            console.log('[DEBUG] Начало отправки данных в Telegram');
+            console.log('[DEBUG] Состояние tg:', {
+                isAvailable: !!tg,
+                hasSendData: tg && typeof tg.sendData === 'function',
+                hasMainButton: tg && !!tg.MainButton,
+                initData: tg ? tg.initData : null
+            });
+
             if (!tg || typeof tg.sendData !== 'function') {
-                console.error('Telegram WebApp не инициализирован или метод sendData недоступен');
+                console.error('[ERROR] Telegram WebApp не инициализирован или метод sendData недоступен');
                 return false;
             }
 
@@ -780,29 +788,24 @@
                     selected_items: selectedItems
                 });
                 
-                console.log('[DEBUG] Отправка данных в Telegram:', dataToSend);
-                console.log('[DEBUG] Telegram WebApp состояние:', {
-                    isExpanded: tg.isExpanded,
-                    viewportHeight: tg.viewportHeight,
-                    viewportStableHeight: tg.viewportStableHeight
-                });
+                console.log('[DEBUG] Подготовка данных для отправки:', dataToSend);
                 
-                // Отправляем данные напрямую через tg.sendData
-                tg.sendData(dataToSend);
-                console.log('[DEBUG] Данные отправлены в Telegram');
-                
-                // Проверяем, что данные действительно были отправлены
-                if (tg.onEvent) {
-                    tg.onEvent('messageSent', function() {
-                        console.log('[DEBUG] Получено подтверждение отправки сообщения');
+                // Пробуем использовать MainButton для отправки
+                if (tg.MainButton) {
+                    console.log('[DEBUG] Используем MainButton для отправки');
+                    tg.MainButton.setText('Отправка...');
+                    tg.MainButton.onClick(() => {
+                        console.log('[DEBUG] MainButton clicked, отправка данных...');
+                        tg.sendData(dataToSend);
                     });
-                    
-                    tg.onEvent('messageError', function(error) {
-                        console.error('[DEBUG] Ошибка отправки сообщения:', error);
-                    });
+                    tg.MainButton.show();
+                    return true;
+                } else {
+                    // Если MainButton недоступен, отправляем напрямую
+                    console.log('[DEBUG] Отправка напрямую через tg.sendData');
+                    tg.sendData(dataToSend);
+                    return true;
                 }
-                
-                return true;
             } catch (error) {
                 console.error('[ERROR] Ошибка при отправке данных в Telegram:', error);
                 return false;
@@ -811,6 +814,7 @@
 
         // Функция для подтверждения выбора
         async function confirmSelection() {
+            console.log('[DEBUG] Начало подтверждения выбора');
             const selectedItems = {};
             
             // Собираем только ненулевые значения
@@ -820,12 +824,15 @@
                 }
             }
             
+            console.log('[DEBUG] Выбранные товары:', selectedItems);
+            
             if (Object.keys(selectedItems).length === 0) {
                 alert('Выберите хотя бы один товар');
                 return;
             }
 
             try {
+                console.log('[DEBUG] Сохранение на сервере...');
                 // Сначала сохраняем на сервере
                 const url = `${API_BASE_URL}/api/selection/${messageId}`;
                 const response = await fetch(url, {
@@ -843,16 +850,22 @@
                     throw new Error(`Ошибка HTTP: ${response.status}`);
                 }
 
+                console.log('[DEBUG] Данные успешно сохранены на сервере');
+                console.log('[DEBUG] Отправка данных в Telegram...');
+
                 // После успешного сохранения на сервере отправляем в Telegram
                 const success = await sendDataToTelegram(selectedItems);
                 
                 if (success) {
+                    console.log('[DEBUG] Данные успешно отправлены в Telegram');
                     showSaveNotification();
                     // Закрываем WebApp после успешной отправки
                     if (tg && typeof tg.close === 'function') {
+                        console.log('[DEBUG] Закрытие WebApp');
                         tg.close();
                     }
                 } else {
+                    console.error('[ERROR] Не удалось отправить данные в Telegram');
                     alert('Не удалось отправить данные в Telegram. Попробуйте еще раз.');
                 }
             } catch (error) {
