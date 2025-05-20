@@ -41,10 +41,10 @@ async def main():
     await register_commands(bot)
     
     # Регистрируем обработчики
+    dp.include_router(webapp.router)
     dp.include_router(photo.router)
     dp.include_router(callbacks.router)
     dp.include_router(commands.router)
-    dp.include_router(webapp.router)
     dp.include_router(inline.router)
     
     await dp.start_polling(bot)
