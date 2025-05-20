@@ -247,69 +247,78 @@
             }
             
             // Обработчик успешной отправки данных
-            tg.onEvent('mainButtonClicked', async function(){
-                console.log('[DEBUG] mainButtonClicked event Fired! Проверка состояния кнопки...'); // САМЫЙ ПЕРВЫЙ ЛОГ
-                
-                if (!tg || !tg.MainButton) {
-                    console.error('[ERROR] tg или tg.MainButton не определены в mainButtonClicked.');
-                    return;
-                }
-                console.log(`[DEBUG] Состояние MainButton: isActive=${tg.MainButton.isActive}, isVisible=${tg.MainButton.isVisible}, isInProgress=${tg.MainButton.isInProgress}`);
-
-                if (!tg.MainButton.isActive) {
-                    console.warn('[WARN] MainButton неактивна, выход из обработчика.');
-                    return; 
-                }
-
-                console.log('[DEBUG] MainButton активна, продолжаем обработку...');
-                tg.MainButton.showProgress(false);
-                tg.MainButton.disable();
-
-                // Очищаем предыдущий таймаут, если он был
-                if (telegramResponseTimeoutId) {
-                    clearTimeout(telegramResponseTimeoutId);
-                    telegramResponseTimeoutId = null;
-                }
-
+            if (tg.MainButton) {
                 try {
-                    const sendAttemptInitiated = await confirmSelection();
-                    console.log(`[DEBUG] Результат confirmSelection (sendAttemptInitiated): ${sendAttemptInitiated}`); // Логируем результат
-                    
-                    if (sendAttemptInitiated) {
-                        // Если tg.sendData() был вызван, устанавливаем таймаут
-                        console.log('[DEBUG] Установка таймаута для ответа от Telegram (20 секунд)');
-                        telegramResponseTimeoutId = setTimeout(() => {
-                            console.error('[TIMEOUT] Нет ответа от Telegram в течение 20 секунд.');
-                            alert('Не удалось получить ответ от Telegram. Пожалуйста, проверьте ваше соединение и попробуйте снова.');
+                    tg.MainButton.setText('Подтвердить');
+                    tg.MainButton.show();
+                    console.log('[DEBUG] tg.MainButton настроена и показана.');
+
+                    tg.onEvent('mainButtonClicked', async function(){
+                        console.log('[DEBUG] ОСНОВНОЙ mainButtonClicked event Fired! Проверка состояния кнопки...'); 
+                        
+                        if (!tg || !tg.MainButton) {
+                            console.error('[ERROR] tg или tg.MainButton не определены в ОСНОВНОМ mainButtonClicked.');
+                            return;
+                        }
+                        console.log(`[DEBUG] Состояние MainButton (в основном обработчике): isActive=${tg.MainButton.isActive}, isVisible=${tg.MainButton.isVisible}, isInProgress=${tg.MainButton.isInProgress}`);
+
+                        if (!tg.MainButton.isActive) {
+                            console.warn('[WARN] MainButton неактивна, выход из ОСНОВНОГО обработчика.');
+                            return; 
+                        }
+
+                        console.log('[DEBUG] MainButton активна, продолжаем обработку в ОСНОВНОМ обработчике...');
+                        tg.MainButton.showProgress(false);
+                        tg.MainButton.disable();
+
+                        if (telegramResponseTimeoutId) {
+                            clearTimeout(telegramResponseTimeoutId);
+                            telegramResponseTimeoutId = null;
+                        }
+
+                        try {
+                            const sendAttemptInitiated = await confirmSelection();
+                            console.log(`[DEBUG] Результат confirmSelection (в основном обработчике): ${sendAttemptInitiated}`); 
+                            
+                            if (sendAttemptInitiated) {
+                                console.log('[DEBUG] Установка таймаута для ответа от Telegram (20 секунд) (в основном обработчике)');
+                                telegramResponseTimeoutId = setTimeout(() => {
+                                    console.error('[TIMEOUT] Нет ответа от Telegram в течение 20 секунд (из основного обработчика).');
+                                    alert('Не удалось получить ответ от Telegram. Пожалуйста, проверьте ваше соединение и попробуйте снова.');
+                                    if (tg.MainButton) {
+                                        tg.MainButton.hideProgress();
+                                        tg.MainButton.enable();
+                                    }
+                                    telegramResponseTimeoutId = null; 
+                                }, 20000); 
+                            } else {
+                                if (tg.MainButton) {
+                                    tg.MainButton.hideProgress();
+                                    tg.MainButton.enable();
+                                }
+                            }
+                        } catch (error) {
+                            console.error('[ERROR] Непредвиденная ошибка в ОСНОВНОМ обработчике MainButton:', error);
+                            alert('Произошла критическая ошибка. Пожалуйста, попробуйте снова.');
                             if (tg.MainButton) {
                                 tg.MainButton.hideProgress();
                                 tg.MainButton.enable();
                             }
-                            telegramResponseTimeoutId = null; // Сбрасываем ID таймаута
-                        }, 20000); // 20 секунд
-                    } else {
-                        // Если отправка не была инициирована (ошибка до tg.sendData или товары не выбраны)
-                        if (tg.MainButton) {
-                            tg.MainButton.hideProgress();
-                            tg.MainButton.enable();
                         }
-                    }
-                } catch (error) {
-                    console.error('[ERROR] Непредвиденная ошибка в обработчике MainButton:', error);
-                    alert('Произошла критическая ошибка. Пожалуйста, попробуйте снова.');
-                    if (tg.MainButton) {
-                        tg.MainButton.hideProgress();
-                        tg.MainButton.enable();
-                    }
+                    });
+                    console.log('[DEBUG] ОСНОВНОЙ обработчик для mainButtonClicked зарегистрирован.');
+
+                } catch (e) {
+                    console.error('[ERROR] Ошибка при настройке tg.MainButton или регистрации ОСНОВНОГО обработчика:', e);
                 }
-            });
+            }
             
             // Обработчик успешной отправки данных
             tg.onEvent('messageSent', function() {
                 console.log('[DEBUG] Получено подтверждение отправки сообщения от бота (messageSent)');
                 if (telegramResponseTimeoutId) {
                     clearTimeout(telegramResponseTimeoutId);
-                    telegramResponseId = null;
+                    telegramResponseTimeoutId = null;
                     console.log('[DEBUG] Таймаут отменен из-за messageSent.');
                 }
                 showSaveNotification();
@@ -337,34 +346,6 @@
                 console.log('[DEBUG] Изменение размера окна');
             });
 
-            // Настройка кнопок Telegram WebApp
-            if (tg.MainButton) {
-                try {
-                    tg.MainButton.setText('Подтвердить (ТЕСТ)');
-                    tg.MainButton.show();
-                    console.log('[DEBUG] tg.MainButton настроена и показана для ТЕСТА.');
-
-                    // ТЕСТОВЫЙ ОБРАБОТЧИК mainButtonClicked
-                    tg.onEvent('mainButtonClicked', function testMainButtonHandler(){
-                        console.log('[TEST_HANDLER] MainButton clicked! Показываю alert.');
-                        alert('Тестовый обработчик MainButton сработал!');
-                        // Здесь можно временно попробовать вызвать tg.sendData с тестовыми данными
-                        // чтобы проверить, работает ли sendData вообще, если его вызвать отсюда
-                        // try {
-                        //     tg.sendData(JSON.stringify({test: "data", message_id: messageId || 123}));
-                        //     console.log('[TEST_HANDLER] tg.sendData вызван из тестового обработчика.');
-                        // } catch (e) {
-                        //     console.error('[TEST_HANDLER] Ошибка при вызове tg.sendData из тестового обработчика:', e);
-                        //     alert('Ошибка тестового tg.sendData: ' + e.message);
-                        // }
-                    });
-                    console.log('[DEBUG] ТЕСТОВЫЙ обработчик для mainButtonClicked зарегистрирован.');
-
-                } catch (e) {
-                    console.error('[ERROR] Ошибка при настройке tg.MainButton для ТЕСТА:', e);
-                }
-            }
-            
             // Проверяем, доступен ли BackButton перед его использованием
             if (tg.BackButton && tg.BackButton.show && typeof tg.BackButton.onClick === 'function') { 
                 try {
