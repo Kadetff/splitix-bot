@@ -461,8 +461,47 @@
             });
             
             // Обработчик для кнопки отправки тестовых данных
-            document.getElementById('send-test-data-btn').addEventListener('click', function() {
-                sendTestData();
+            document.getElementById('send-test-data-btn').addEventListener('click', async function() {
+                console.log('[DEBUG_TEST] Нажата кнопка "Отправить тестовые данные" для принудительного вызова sendDataToTelegram.');
+                
+                // Устанавливаем тестовые ID, если они не были получены (на всякий случай)
+                if (!messageId) messageId = 12345;
+                if (!userId) userId = 67890; // Убедитесь, что userId есть, иначе selected_items не будут правильно ассоциированы
+
+                const testSelectedItems = {"0": 1, "1": 2}; // Пример выбранных товаров
+                console.log('[DEBUG_TEST] Тестовые messageId:', messageId, 'userId:', userId);
+                console.log('[DEBUG_TEST] Тестовые selectedItems для отправки:', testSelectedItems);
+
+                // Показываем индикатор на MainButton, если она есть, для визуальной обратной связи
+                if (tg && tg.MainButton && tg.MainButton.isActive) {
+                    tg.MainButton.showProgress(false);
+                    tg.MainButton.disable();
+                }
+
+                const success = await sendDataToTelegram(testSelectedItems);
+                console.log(`[DEBUG_TEST] Результат принудительного вызова sendDataToTelegram: ${success}`);
+
+                if (success) {
+                    // Если sendData был вызван, устанавливаем таймаут (аналогично mainButtonClicked)
+                    console.log('[DEBUG_TEST] Установка таймаута для ответа от Telegram (20 секунд) после принудительной отправки.');
+                    if (telegramResponseTimeoutId) clearTimeout(telegramResponseTimeoutId); // Очищаем старый, если есть
+                    telegramResponseTimeoutId = setTimeout(() => {
+                        console.error('[TIMEOUT_TEST] Нет ответа от Telegram в течение 20 секунд после принудительной отправки.');
+                        alert('(ТЕСТ) Не удалось получить ответ от Telegram. Пожалуйста, проверьте ваше соединение и попробуйте снова.');
+                        if (tg && tg.MainButton) {
+                            tg.MainButton.hideProgress();
+                            tg.MainButton.enable();
+                        }
+                        telegramResponseTimeoutId = null;
+                    }, 20000);
+                } else {
+                    // Если sendDataToTelegram вернул false (например, tg или tg.sendData не доступны)
+                    alert('(ТЕСТ) Не удалось инициировать отправку данных в Telegram. Проверьте консоль.');
+                    if (tg && tg.MainButton) {
+                        tg.MainButton.hideProgress();
+                        tg.MainButton.enable(); // Разблокируем, если была ошибка до вызова sendData
+                    }
+                }
             });
             
             // Обработчик для кнопки тестирования сохранения
