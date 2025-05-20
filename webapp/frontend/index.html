@@ -390,6 +390,7 @@
         let userCounts = {};
         let messageId = 0;
         let userId = 0;
+        let queryId = '';
         let receiptData = null;
         
         // Функция для инициализации приложения
@@ -407,6 +408,19 @@
                     console.warn('[WARN] Не удалось извлечь userId из initDataUnsafe.user');
                     // Можно показать ошибку, если userId критичен для загрузки данных с сервера без message_id
                 }
+
+                // Добавлено: Извлечение query_id
+                if (isTelegramWebApp && initDataUnsafe && initDataUnsafe.query_id) {
+                    queryId = initDataUnsafe.query_id;
+                    console.log(`[DEBUG] query_id из initDataUnsafe: ${queryId}`);
+                    debugInfo.innerHTML += `query_id: ${queryId}<br>`;
+                } else if (isTelegramWebApp) {
+                    // Если мы в Telegram, но query_id нет, это может быть проблемой для answerWebAppQuery
+                    console.warn('[WARN] Не удалось извлечь query_id из initDataUnsafe. Это может быть необходимо для confirmSelection.');
+                    // Показываем в debugInfo, если его нет
+                    debugInfo.innerHTML += `<span style="color: orange;">query_id не найден в initDataUnsafe</span><br>`;
+                }
+                // --- END
 
                 if (isTelegramWebApp && initDataUnsafe) { // initDataUnsafe уже проверен выше
                     // Получаем ID пользователя - уже сделано выше
@@ -864,7 +878,7 @@
         
         // Функция для отправки данных в Telegram
         async function sendDataToTelegram(selectedItems) {
-            console.log('[DEBUG] Начало sendDataToTelegram');
+            console.log(`[DEBUG] Начало sendDataToTelegram. Глобальный messageId: ${messageId}`); // Лог messageId
             
             if (!tg) {
                 console.error('[ERROR] Telegram WebApp (tg) не инициализирован в sendDataToTelegram.');
@@ -878,6 +892,7 @@
             try {
                 const dataToSend = JSON.stringify({
                     message_id: messageId,
+                    query_id: queryId,
                     selected_items: selectedItems
                 });
                 
@@ -894,7 +909,7 @@
 
         // Функция для подтверждения выбора
         async function confirmSelection() {
-            console.log('[DEBUG] Начало подтверждения выбора');
+            console.log(`[DEBUG] Начало подтверждения выбора. Глобальный messageId: ${messageId}`); // Лог messageId
             const selectedItems = {};
             
             // Собираем только ненулевые значения
