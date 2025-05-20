@@ -240,6 +240,26 @@
         let tg = window.Telegram ? window.Telegram.WebApp : null;
         let isTelegramWebApp = !!tg;
         
+        // Проверка инициализации Telegram WebApp
+        if (tg) {
+            console.log('Telegram WebApp инициализирован');
+            console.log('initData:', tg.initData);
+            console.log('initDataUnsafe:', tg.initDataUnsafe);
+            console.log('version:', tg.version);
+            console.log('platform:', tg.platform);
+            console.log('colorScheme:', tg.colorScheme);
+            console.log('themeParams:', tg.themeParams);
+            console.log('isExpanded:', tg.isExpanded);
+            console.log('viewportHeight:', tg.viewportHeight);
+            console.log('viewportStableHeight:', tg.viewportStableHeight);
+            console.log('headerColor:', tg.headerColor);
+            console.log('backgroundColor:', tg.backgroundColor);
+            console.log('isClosingConfirmationEnabled:', tg.isClosingConfirmationEnabled);
+            console.log('BackButton:', tg.BackButton ? 'доступен' : 'недоступен');
+            console.log('MainButton:', tg.MainButton ? 'доступен' : 'недоступен');
+            console.log('HapticFeedback:', tg.HapticFeedback ? 'доступен' : 'недоступен');
+        }
+        
         // Добавляем обработчик событий от бота
         if (tg) {
             tg.onEvent('messageSent', function() {
@@ -761,9 +781,27 @@
                 });
                 
                 console.log('[DEBUG] Отправка данных в Telegram:', dataToSend);
+                console.log('[DEBUG] Telegram WebApp состояние:', {
+                    isExpanded: tg.isExpanded,
+                    viewportHeight: tg.viewportHeight,
+                    viewportStableHeight: tg.viewportStableHeight
+                });
                 
                 // Отправляем данные напрямую через tg.sendData
                 tg.sendData(dataToSend);
+                console.log('[DEBUG] Данные отправлены в Telegram');
+                
+                // Проверяем, что данные действительно были отправлены
+                if (tg.onEvent) {
+                    tg.onEvent('messageSent', function() {
+                        console.log('[DEBUG] Получено подтверждение отправки сообщения');
+                    });
+                    
+                    tg.onEvent('messageError', function(error) {
+                        console.error('[DEBUG] Ошибка отправки сообщения:', error);
+                    });
+                }
+                
                 return true;
             } catch (error) {
                 console.error('[ERROR] Ошибка при отправке данных в Telegram:', error);
