@@ -79,18 +79,6 @@
             font-weight: bold;
             font-size: 18px;
         }
-        .back-btn {
-            background-color: #f0f0f0;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 20px;
-            margin-right: 10px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .back-btn:hover {
-            background-color: #e0e0e0;
-        }
         .items-container {
             margin-bottom: 70px;
         }
@@ -212,11 +200,11 @@
     
     <div class="summary">
         <div>
-            // Кнопка "Вернуться к боту" будет удалена, так как есть tg.BackButton
+            <!-- HTML-кнопка "Вернуться к боту" удалена -->
         </div>
         <div class="summary-total" id="total">Итого: 0.00</div>
         <div>
-            // Кнопка "Подтвердить" будет удалена, так как есть tg.MainButton
+            <!-- HTML-кнопка "Подтвердить" удалена -->
         </div>
     </div>
 
@@ -234,23 +222,54 @@
             tg.expand();
             
             // Обработчик успешной отправки данных
-            tg.onEvent('mainButtonClicked', function(){
+            tg.onEvent('mainButtonClicked', async function(){
                 console.log('[DEBUG] Нажата MainButton');
-                // Вызываем confirmSelection при нажатии на MainButton
-                confirmSelection();
+                if (!tg.MainButton.isActive) return; // Если кнопка уже неактивна (например, в процессе обработки)
+
+                tg.MainButton.showProgress(false); // Показать индикатор загрузки, текст кнопки остается
+                tg.MainButton.disable();
+
+                try {
+                    const sendAttemptInitiated = await confirmSelection(); // confirmSelection теперь возвращает boolean
+                    
+                    if (!sendAttemptInitiated) {
+                        // Если отправка не была инициирована (например, ошибка до tg.sendData или товары не выбраны)
+                        // confirmSelection уже показал alert с причиной.
+                        // Просто разблокируем кнопку.
+                        if (tg.MainButton) {
+                            tg.MainButton.hideProgress();
+                            tg.MainButton.enable();
+                        }
+                    }
+                    // Если sendAttemptInitiated = true, значит tg.sendData() был вызван.
+                    // Кнопка остается заблокированной, ждем событий messageSent или messageError.
+                } catch (error) {
+                    // Этот catch для непредвиденных ошибок, которые мог пропустить confirmSelection
+                    console.error('[ERROR] Непредвиденная ошибка в обработчике MainButton:', error);
+                    alert('Произошла критическая ошибка. Пожалуйста, попробуйте снова.');
+                    if (tg.MainButton) {
+                        tg.MainButton.hideProgress();
+                        tg.MainButton.enable();
+                    }
+                }
             });
             
             // Обработчик успешной отправки данных
             tg.onEvent('messageSent', function() {
                 console.log('[DEBUG] Получено подтверждение отправки сообщения от бота');
                 showSaveNotification();
+                if (tg.MainButton) tg.MainButton.hideProgress();
                 tg.close();
             });
             
             // Обработчик ошибки отправки данных
             tg.onEvent('messageError', function(error) {
-                console.error('[DEBUG] Ошибка отправки сообщения:', error);
-                alert('Ошибка отправки данных в Telegram: ' + error);
+                console.error('[DEBUG] Ошибка отправки сообщения Telegram:', error);
+                alert('Ошибка отправки данных в Telegram: ' + String(error));
+                if (tg.MainButton) {
+                    tg.MainButton.hideProgress();
+                    tg.MainButton.enable();
+                }
             });
 
             // Обработчик закрытия WebApp
@@ -798,12 +817,11 @@
             
             if (Object.keys(selectedItems).length === 0) {
                 alert('Выберите хотя бы один товар');
-                return;
+                return false; // Отправка не инициирована, кнопка будет разблокирована
             }
 
             try {
                 console.log('[DEBUG] Сохранение на сервере...');
-                // Сначала сохраняем на сервере
                 const url = `${API_BASE_URL}/api/selection/${messageId}`;
                 const response = await fetch(url, {
                     method: 'POST',
@@ -817,22 +835,31 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`Ошибка HTTP: ${response.status}`);
+                    const errorText = await response.text();
+                    console.error(`[ERROR] Ошибка сохранения на сервере: ${response.status} - ${errorText}`);
+                    alert(`Ошибка сохранения на сервере: ${response.status} - ${errorText}`);
+                    return false; // Отправка не инициирована, кнопка будет разблокирована
                 }
 
                 console.log('[DEBUG] Данные успешно сохранены на сервере');
                 console.log('[DEBUG] Отправка данных в Telegram...');
 
                 // После успешного сохранения на сервере отправляем в Telegram
-                const success = await sendDataToTelegram(selectedItems);
+                const telegramSendInitiated = await sendDataToTelegram(selectedItems);
                 
-                if (!success) {
-                    console.error('[ERROR] Не удалось отправить данные в Telegram');
-                    alert('Не удалось отправить данные в Telegram. Попробуйте еще раз.');
+                if (!telegramSendInitiated) {
+                    // sendDataToTelegram уже вывел ошибку в консоль, если были проблемы с tg объектом
+                    alert('Не удалось инициировать отправку данных в Telegram. Проверьте консоль разработчика.');
+                    return false; // Отправка не инициирована, кнопка будет разблокирована
                 }
+                // Если telegramSendInitiated = true, значит tg.sendData() был вызван.
+                // Кнопка останется заблокированной, ждем событий messageSent/messageError.
+                return true; 
             } catch (error) {
-                console.error('[ERROR] Ошибка при сохранении выбора:', error);
-                alert('Произошла ошибка при сохранении выбора: ' + error.message);
+                // Этот catch для других ошибок в процессе (например, сеть при fetch, JSON parse и т.д.)
+                console.error('[ERROR] Ошибка при обработке подтверждения:', error);
+                alert('Произошла ошибка при обработке подтверждения: ' + error.message);
+                return false; // Отправка не инициирована, кнопка будет разблокирована
             }
         }
 
