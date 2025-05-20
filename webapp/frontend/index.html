@@ -240,37 +240,33 @@
         let tg = window.Telegram ? window.Telegram.WebApp : null;
         let isTelegramWebApp = !!tg;
         
-        // Проверка инициализации Telegram WebApp
+        // Инициализация обработчиков событий Telegram WebApp
         if (tg) {
-            console.log('Telegram WebApp инициализирован');
-            console.log('initData:', tg.initData);
-            console.log('initDataUnsafe:', tg.initDataUnsafe);
-            console.log('version:', tg.version);
-            console.log('platform:', tg.platform);
-            console.log('colorScheme:', tg.colorScheme);
-            console.log('themeParams:', tg.themeParams);
-            console.log('isExpanded:', tg.isExpanded);
-            console.log('viewportHeight:', tg.viewportHeight);
-            console.log('viewportStableHeight:', tg.viewportStableHeight);
-            console.log('headerColor:', tg.headerColor);
-            console.log('backgroundColor:', tg.backgroundColor);
-            console.log('isClosingConfirmationEnabled:', tg.isClosingConfirmationEnabled);
-            console.log('BackButton:', tg.BackButton ? 'доступен' : 'недоступен');
-            console.log('MainButton:', tg.MainButton ? 'доступен' : 'недоступен');
-            console.log('HapticFeedback:', tg.HapticFeedback ? 'доступен' : 'недоступен');
-        }
-        
-        // Добавляем обработчик событий от бота
-        if (tg) {
+            // Обработчик успешной отправки данных
             tg.onEvent('messageSent', function() {
-                debugInfo.innerHTML += `Получено подтверждение отправки сообщения от бота<br>`;
-                console.log('Получено подтверждение отправки сообщения от бота');
+                console.log('[DEBUG] Получено подтверждение отправки сообщения от бота');
+                showSaveNotification();
+                tg.close();
             });
             
+            // Обработчик ошибки отправки данных
             tg.onEvent('messageError', function(error) {
-                debugInfo.innerHTML += `<span style="color: red;">Ошибка отправки сообщения: ${error}</span><br>`;
-                console.error('Ошибка отправки сообщения:', error);
+                console.error('[DEBUG] Ошибка отправки сообщения:', error);
+                alert('Ошибка отправки данных в Telegram: ' + error);
             });
+
+            // Обработчик закрытия WebApp
+            tg.onEvent('viewportChanged', function() {
+                console.log('[DEBUG] Изменение размера окна');
+            });
+
+            // Обработчик нажатия на кнопку "Назад"
+            if (tg.BackButton) {
+                tg.BackButton.onClick(function() {
+                    console.log('[DEBUG] Нажата кнопка "Назад"');
+                    tg.close();
+                });
+            }
         }
         
         // Отладочная информация
@@ -770,15 +766,9 @@
         // Функция для отправки данных в Telegram
         async function sendDataToTelegram(selectedItems) {
             console.log('[DEBUG] Начало отправки данных в Telegram');
-            console.log('[DEBUG] Состояние tg:', {
-                isAvailable: !!tg,
-                hasSendData: tg && typeof tg.sendData === 'function',
-                hasMainButton: tg && !!tg.MainButton,
-                initData: tg ? tg.initData : null
-            });
-
-            if (!tg || typeof tg.sendData !== 'function') {
-                console.error('[ERROR] Telegram WebApp не инициализирован или метод sendData недоступен');
+            
+            if (!tg) {
+                console.error('[ERROR] Telegram WebApp не инициализирован');
                 return false;
             }
 
@@ -790,22 +780,11 @@
                 
                 console.log('[DEBUG] Подготовка данных для отправки:', dataToSend);
                 
-                // Пробуем использовать MainButton для отправки
-                if (tg.MainButton) {
-                    console.log('[DEBUG] Используем MainButton для отправки');
-                    tg.MainButton.setText('Отправка...');
-                    tg.MainButton.onClick(() => {
-                        console.log('[DEBUG] MainButton clicked, отправка данных...');
-                        tg.sendData(dataToSend);
-                    });
-                    tg.MainButton.show();
-                    return true;
-                } else {
-                    // Если MainButton недоступен, отправляем напрямую
-                    console.log('[DEBUG] Отправка напрямую через tg.sendData');
-                    tg.sendData(dataToSend);
-                    return true;
-                }
+                // Отправляем данные напрямую
+                tg.sendData(dataToSend);
+                console.log('[DEBUG] Данные отправлены в Telegram');
+                
+                return true;
             } catch (error) {
                 console.error('[ERROR] Ошибка при отправке данных в Telegram:', error);
                 return false;
@@ -856,15 +835,7 @@
                 // После успешного сохранения на сервере отправляем в Telegram
                 const success = await sendDataToTelegram(selectedItems);
                 
-                if (success) {
-                    console.log('[DEBUG] Данные успешно отправлены в Telegram');
-                    showSaveNotification();
-                    // Закрываем WebApp после успешной отправки
-                    if (tg && typeof tg.close === 'function') {
-                        console.log('[DEBUG] Закрытие WebApp');
-                        tg.close();
-                    }
-                } else {
+                if (!success) {
                     console.error('[ERROR] Не удалось отправить данные в Telegram');
                     alert('Не удалось отправить данные в Telegram. Попробуйте еще раз.');
                 }
