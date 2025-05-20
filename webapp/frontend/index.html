@@ -340,11 +340,28 @@
             // Настройка кнопок Telegram WebApp
             if (tg.MainButton) {
                 try {
-                    tg.MainButton.setText('Подтвердить');
+                    tg.MainButton.setText('Подтвердить (ТЕСТ)');
                     tg.MainButton.show();
-                    console.log('[DEBUG] tg.MainButton настроена и показана.');
+                    console.log('[DEBUG] tg.MainButton настроена и показана для ТЕСТА.');
+
+                    // ТЕСТОВЫЙ ОБРАБОТЧИК mainButtonClicked
+                    tg.onEvent('mainButtonClicked', function testMainButtonHandler(){
+                        console.log('[TEST_HANDLER] MainButton clicked! Показываю alert.');
+                        alert('Тестовый обработчик MainButton сработал!');
+                        // Здесь можно временно попробовать вызвать tg.sendData с тестовыми данными
+                        // чтобы проверить, работает ли sendData вообще, если его вызвать отсюда
+                        // try {
+                        //     tg.sendData(JSON.stringify({test: "data", message_id: messageId || 123}));
+                        //     console.log('[TEST_HANDLER] tg.sendData вызван из тестового обработчика.');
+                        // } catch (e) {
+                        //     console.error('[TEST_HANDLER] Ошибка при вызове tg.sendData из тестового обработчика:', e);
+                        //     alert('Ошибка тестового tg.sendData: ' + e.message);
+                        // }
+                    });
+                    console.log('[DEBUG] ТЕСТОВЫЙ обработчик для mainButtonClicked зарегистрирован.');
+
                 } catch (e) {
-                    console.error('[ERROR] Ошибка при настройке tg.MainButton:', e);
+                    console.error('[ERROR] Ошибка при настройке tg.MainButton для ТЕСТА:', e);
                 }
             }
             
