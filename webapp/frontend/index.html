@@ -747,179 +747,113 @@
             return false;
         }
         
+        // Функция для отправки данных в Telegram
+        async function sendDataToTelegram(selectedItems) {
+            if (!tg || typeof tg.sendData !== 'function') {
+                console.error('Telegram WebApp не инициализирован или метод sendData недоступен');
+                return false;
+            }
+
+            try {
+                const dataToSend = JSON.stringify({
+                    message_id: messageId,
+                    selected_items: selectedItems
+                });
+                
+                console.log('[DEBUG] Отправка данных в Telegram:', dataToSend);
+                
+                // Отправляем данные напрямую через tg.sendData
+                tg.sendData(dataToSend);
+                return true;
+            } catch (error) {
+                console.error('[ERROR] Ошибка при отправке данных в Telegram:', error);
+                return false;
+            }
+        }
+
         // Функция для подтверждения выбора
         async function confirmSelection() {
             const selectedItems = {};
             
-            // Собираем только ненулевые значения для отправки
+            // Собираем только ненулевые значения
             for (const [indexStr, count] of Object.entries(userCounts)) {
                 if (count > 0) {
-                    // Преобразуем count в число для единообразия
                     selectedItems[indexStr] = Number(count);
                 }
             }
             
-            // Если ничего не выбрано
             if (Object.keys(selectedItems).length === 0) {
                 alert('Выберите хотя бы один товар');
                 return;
             }
-            
+
             try {
-                debugInfo.innerHTML += `Отправка выбора: ${JSON.stringify(selectedItems)}<br>`;
-                console.log('[confirmSelection] selectedItems:', selectedItems);
-                
-                // Всегда преобразуем userId в строку для отправки
-                const userIdStr = String(userId);
-                console.log(`[DEBUG] Saving for user ID (string): ${userIdStr}`);
-                
-                // Сохраняем выбор на сервере
+                // Сначала сохраняем на сервере
                 const url = `${API_BASE_URL}/api/selection/${messageId}`;
-                console.log(`[DEBUG] Saving to URL: ${url}`);
-                
-                const requestBody = {
-                    user_id: userIdStr,
-                    selected_items: selectedItems
-                };
-                console.log('[DEBUG] Request payload:', requestBody);
-                
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(requestBody)
+                    body: JSON.stringify({
+                        user_id: String(userId),
+                        selected_items: selectedItems
+                    })
                 });
-                debugInfo.innerHTML += `[fetch] Статус ответа: ${response.status}<br>`;
-                console.log('[fetch] Response status:', response.status);
+
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    debugInfo.innerHTML += `<span style="color: red;">Ошибка HTTP: ${response.status} - ${errorText}</span><br>`;
-                    console.error('[fetch] Ошибка HTTP:', response.status, errorText);
-                    alert(`Ошибка HTTP: ${response.status} - ${errorText}`);
                     throw new Error(`Ошибка HTTP: ${response.status}`);
                 }
-                const responseData = await response.json();
-                debugInfo.innerHTML += `[fetch] Ответ сервера: ${JSON.stringify(responseData)}<br>`;
-                console.log('[fetch] Response data:', responseData);
+
+                // После успешного сохранения на сервере отправляем в Telegram
+                const success = await sendDataToTelegram(selectedItems);
                 
-                // Показываем уведомление о сохранении
-                showSaveNotification();
-                
-                // Тихое обновление отладочной информации без оповещения пользователя
-                debugInfo.innerHTML += `<span style="color: green;">Выбор автоматически сохранен</span><br>`;
-                
-                // Отправляем данные обратно в Telegram
-                if (tg) {
-                    const dataToSend = JSON.stringify({
-                        message_id: messageId,
-                        selected_items: selectedItems
-                    });
-                    debugInfo.innerHTML += `Отправка данных в Telegram: ${dataToSend}<br>`;
-                    console.log('[tg.sendData] Отправляемые данные:', dataToSend);
-                    try {
-                        if (tg.MainButton) {
-                            tg.MainButton.setText('Отправка...');
-                            tg.MainButton.onClick(() => {
-                                debugInfo.innerHTML += '[tg.sendData] Нажата MainButton, отправка данных...<br>';
-                                console.log('[tg.sendData] MainButton click, sending data...');
-                                tg.sendData(dataToSend);
-                            });
-                            tg.MainButton.show();
-                        } else {
-                            debugInfo.innerHTML += '[tg.sendData] Отправка напрямую через tg.sendData<br>';
-                            console.log('[tg.sendData] Отправка напрямую через tg.sendData');
-                            tg.sendData(dataToSend);
-                        }
-                        debugInfo.innerHTML += '[tg.sendData] Данные отправлены в Telegram<br>';
-                        console.log('[tg.sendData] Данные отправлены в Telegram');
-                        
-                        // Не закрываем WebApp автоматически, пусть пользователь сам закроет его
-                        // после того как увидит сообщение от бота
-                        if (tg.MainButton) {
-                            tg.MainButton.setText('Закрыть');
-                            tg.MainButton.onClick(() => {
-                                tg.close();
-                            });
-                            tg.MainButton.show();
-                        }
-                    } catch (e) {
-                        debugInfo.innerHTML += `<span style="color: red;">Ошибка при отправке данных: ${e.message}</span><br>`;
-                        console.error('[tg.sendData] Ошибка при отправке данных:', e);
-                        alert('Ошибка при отправке данных: ' + e.message);
-                        throw e;
+                if (success) {
+                    showSaveNotification();
+                    // Закрываем WebApp после успешной отправки
+                    if (tg && typeof tg.close === 'function') {
+                        tg.close();
                     }
                 } else {
-                    alert('Выбор сохранен, но Telegram WebApp недоступен. Данные: ' + JSON.stringify(selectedItems));
+                    alert('Не удалось отправить данные в Telegram. Попробуйте еще раз.');
                 }
             } catch (error) {
-                console.error('[confirmSelection] Ошибка при сохранении выбора:', error);
-                debugInfo.innerHTML += `<span style="color: red;">[confirmSelection] Ошибка: ${error.message}</span><br>`;
+                console.error('[ERROR] Ошибка при сохранении выбора:', error);
                 alert('Произошла ошибка при сохранении выбора: ' + error.message);
             }
         }
-        
-        // Функция для отображения ошибки
-        function showError(message) {
-            const container = document.getElementById('items-container');
-            container.innerHTML = `<div class="error">${message}</div>`;
-        }
-        
+
         // Функция для автоматического сохранения выбора пользователя
         async function autoSaveUserSelection() {
             try {
-                // Подготавливаем данные о выбранных товарах
                 const selectedItems = {};
                 
-                // Собираем только ненулевые значения для отправки
                 for (const [indexStr, count] of Object.entries(userCounts)) {
                     if (count > 0) {
-                        // Преобразуем count в число для единообразия
                         selectedItems[indexStr] = Number(count);
                     }
                 }
                 
-                debugInfo.innerHTML += `Автосохранение выбора: ${JSON.stringify(selectedItems)}<br>`;
-                console.log('[DEBUG] Auto-saving selection:', selectedItems);
-                
-                // Всегда преобразуем userId в строку для отправки
-                const userIdStr = String(userId);
-                console.log(`[DEBUG] Saving for user ID (string): ${userIdStr}`);
-                
-                // Сохраняем выбор на сервере
+                // Сохраняем только на сервере, без отправки в Telegram
                 const url = `${API_BASE_URL}/api/selection/${messageId}`;
-                console.log(`[DEBUG] Saving to URL: ${url}`);
-                
-                const requestBody = {
-                    user_id: userIdStr,
-                    selected_items: selectedItems
-                };
-                console.log('[DEBUG] Request payload:', requestBody);
-                
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(requestBody)
+                    body: JSON.stringify({
+                        user_id: String(userId),
+                        selected_items: selectedItems
+                    })
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`Ошибка HTTP: ${response.status}`);
                 }
-                
-                const responseData = await response.json();
-                console.log('[DEBUG] Server response:', responseData);
-                
-                // Показываем уведомление о сохранении
+
                 showSaveNotification();
-                
-                // Тихое обновление отладочной информации без оповещения пользователя
-                debugInfo.innerHTML += `<span style="color: green;">Выбор автоматически сохранен</span><br>`;
             } catch (error) {
-                console.error('[ERROR] Failed to auto-save selection:', error);
-                debugInfo.innerHTML += `<span style="color: red;">Ошибка при автосохранении: ${error.message}</span><br>`;
-                // Не показываем пользователю сообщение об ошибке при автосохранении
+                console.error('[ERROR] Ошибка при автосохранении:', error);
             }
         }
         
