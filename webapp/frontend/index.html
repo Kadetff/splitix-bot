@@ -222,7 +222,12 @@
         // Инициализация обработчиков событий Telegram WebApp
         if (tg) {
             // Разворачиваем WebApp на полный экран
-            tg.expand();
+            try {
+                tg.expand();
+                console.log('[DEBUG] tg.expand() вызван успешно.');
+            } catch (e) {
+                console.error('[ERROR] Ошибка при вызове tg.expand():', e);
+            }
             
             // Обработчик успешной отправки данных
             tg.onEvent('mainButtonClicked', async function(){
@@ -240,6 +245,7 @@
 
                 try {
                     const sendAttemptInitiated = await confirmSelection();
+                    console.log(`[DEBUG] Результат confirmSelection (sendAttemptInitiated): ${sendAttemptInitiated}`); // Логируем результат
                     
                     if (sendAttemptInitiated) {
                         // Если tg.sendData() был вызван, устанавливаем таймаут
@@ -305,16 +311,29 @@
 
             // Настройка кнопок Telegram WebApp
             if (tg.MainButton) {
-                tg.MainButton.setText('Подтвердить');
-                tg.MainButton.show();
+                try {
+                    tg.MainButton.setText('Подтвердить');
+                    tg.MainButton.show();
+                    console.log('[DEBUG] tg.MainButton настроена и показана.');
+                } catch (e) {
+                    console.error('[ERROR] Ошибка при настройке tg.MainButton:', e);
+                }
             }
             
-            if (tg.BackButton) {
-                tg.BackButton.show();
-                tg.BackButton.onClick(function() {
-                    console.log('[DEBUG] Нажата кнопка "Назад"');
-                    tg.close();
-                });
+            // Проверяем, доступен ли BackButton перед его использованием
+            if (tg.BackButton && tg.BackButton.show && typeof tg.BackButton.onClick === 'function') { 
+                try {
+                    tg.BackButton.show();
+                    tg.BackButton.onClick(function() {
+                        console.log('[DEBUG] Нажата кнопка "Назад" (tg.BackButton)');
+                        tg.close();
+                    });
+                    console.log('[DEBUG] tg.BackButton настроен и показан.');
+                } catch (e) {
+                    console.error('[ERROR] Ошибка при настройке tg.BackButton:', e);
+                }
+            } else {
+                console.warn('[WARN] tg.BackButton не поддерживается или не имеет необходимых методов в этой версии Telegram.');
             }
         }
         
