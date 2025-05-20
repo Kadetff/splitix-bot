@@ -79,18 +79,6 @@
             font-weight: bold;
             font-size: 18px;
         }
-        .confirm-btn {
-            background-color: #0088cc;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        .confirm-btn:hover {
-            background-color: #006699;
-        }
         .back-btn {
             background-color: #f0f0f0;
             border: none;
@@ -224,11 +212,11 @@
     
     <div class="summary">
         <div>
-            <button class="back-btn" id="back-btn">Вернуться к боту</button>
+            // Кнопка "Вернуться к боту" будет удалена, так как есть tg.BackButton
         </div>
         <div class="summary-total" id="total">Итого: 0.00</div>
         <div>
-            <button class="confirm-btn" id="confirm-btn">Подтвердить</button>
+            // Кнопка "Подтвердить" будет удалена, так как есть tg.MainButton
         </div>
     </div>
 
@@ -365,19 +353,6 @@
                 debugInfo.innerHTML += `<span style="color: red;">Ошибка: ${error.message}</span><br>`;
                 showError('Не удалось инициализировать приложение');
             }
-            
-            // Обработчики событий
-            document.getElementById('back-btn').addEventListener('click', function() {
-                if (tg) {
-                    tg.close();
-                } else {
-                    alert('Telegram WebApp недоступен. Закройте вкладку браузера.');
-                }
-            });
-            
-            document.getElementById('confirm-btn').addEventListener('click', function() {
-                confirmSelection();
-            });
             
             // Обработчики для отладочных кнопок
             document.getElementById('test-data-btn').addEventListener('click', function() {
