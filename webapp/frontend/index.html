@@ -467,10 +467,11 @@
             // Обработчик для кнопки отправки тестовых данных - МАКСИМАЛЬНО УПРОЩЕННЫЙ ДЛЯ ТЕСТА
             if (testDataBtnElement) {
                 testDataBtnElement.addEventListener('click', function() {
-                    console.log('[DEBUG_TEST_SIMPLE] Нажата кнопка "Отправить тестовые данные" (упрощенный обработчик).');
-                    alert('Упрощенный тестовый обработчик кнопки сработал!');
+                    // Сначала alert, потом console.error
+                    alert('Упрощенный тестовый обработчик кнопки СЕЙЧАС БУДЕТ ЛОГ!');
+                    console.error('[DEBUG_TEST_SIMPLE_ERROR] Нажата кнопка "Отправить тестовые данные" (лог через console.error).');
                 });
-                console.log('[DEBUG_SETUP] Упрощенный обработчик для "send-test-data-btn" зарегистрирован.');
+                console.log('[DEBUG_SETUP] Упрощенный обработчик для "send-test-data-btn" все еще зарегистрирован (версия с console.error).');
             } else {
                 console.error('[DEBUG_SETUP_ERROR] Не удалось найти элемент кнопки с ID "send-test-data-btn". Обработчик не зарегистрирован.');
             }
