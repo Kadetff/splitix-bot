@@ -242,6 +242,16 @@
         
         // Инициализация обработчиков событий Telegram WebApp
         if (tg) {
+            // Разворачиваем WebApp на полный экран
+            tg.expand();
+            
+            // Обработчик успешной отправки данных
+            tg.onEvent('mainButtonClicked', function(){
+                console.log('[DEBUG] Нажата MainButton');
+                // Вызываем confirmSelection при нажатии на MainButton
+                confirmSelection();
+            });
+            
             // Обработчик успешной отправки данных
             tg.onEvent('messageSent', function() {
                 console.log('[DEBUG] Получено подтверждение отправки сообщения от бота');
@@ -260,8 +270,14 @@
                 console.log('[DEBUG] Изменение размера окна');
             });
 
-            // Обработчик нажатия на кнопку "Назад"
+            // Настройка кнопок Telegram WebApp
+            if (tg.MainButton) {
+                tg.MainButton.setText('Подтвердить');
+                tg.MainButton.show();
+            }
+            
             if (tg.BackButton) {
+                tg.BackButton.show();
                 tg.BackButton.onClick(function() {
                     console.log('[DEBUG] Нажата кнопка "Назад"');
                     tg.close();
