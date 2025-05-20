@@ -248,9 +248,20 @@
             
             // Обработчик успешной отправки данных
             tg.onEvent('mainButtonClicked', async function(){
-                console.log('[DEBUG] Нажата MainButton');
-                if (!tg.MainButton.isActive) return;
+                console.log('[DEBUG] mainButtonClicked event Fired! Проверка состояния кнопки...'); // САМЫЙ ПЕРВЫЙ ЛОГ
+                
+                if (!tg || !tg.MainButton) {
+                    console.error('[ERROR] tg или tg.MainButton не определены в mainButtonClicked.');
+                    return;
+                }
+                console.log(`[DEBUG] Состояние MainButton: isActive=${tg.MainButton.isActive}, isVisible=${tg.MainButton.isVisible}, isInProgress=${tg.MainButton.isInProgress}`);
 
+                if (!tg.MainButton.isActive) {
+                    console.warn('[WARN] MainButton неактивна, выход из обработчика.');
+                    return; 
+                }
+
+                console.log('[DEBUG] MainButton активна, продолжаем обработку...');
                 tg.MainButton.showProgress(false);
                 tg.MainButton.disable();
 
@@ -298,7 +309,7 @@
                 console.log('[DEBUG] Получено подтверждение отправки сообщения от бота (messageSent)');
                 if (telegramResponseTimeoutId) {
                     clearTimeout(telegramResponseTimeoutId);
-                    telegramResponseTimeoutId = null;
+                    telegramResponseId = null;
                     console.log('[DEBUG] Таймаут отменен из-за messageSent.');
                 }
                 showSaveNotification();
