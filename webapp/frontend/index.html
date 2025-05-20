@@ -216,6 +216,9 @@
         let tg = window.Telegram ? window.Telegram.WebApp : null;
         let isTelegramWebApp = !!tg;
         
+        // Глобальная переменная для ID таймаута
+        let telegramResponseTimeoutId = null;
+        
         // Инициализация обработчиков событий Telegram WebApp
         if (tg) {
             // Разворачиваем WebApp на полный экран
@@ -224,27 +227,40 @@
             // Обработчик успешной отправки данных
             tg.onEvent('mainButtonClicked', async function(){
                 console.log('[DEBUG] Нажата MainButton');
-                if (!tg.MainButton.isActive) return; // Если кнопка уже неактивна (например, в процессе обработки)
+                if (!tg.MainButton.isActive) return;
 
-                tg.MainButton.showProgress(false); // Показать индикатор загрузки, текст кнопки остается
+                tg.MainButton.showProgress(false);
                 tg.MainButton.disable();
 
+                // Очищаем предыдущий таймаут, если он был
+                if (telegramResponseTimeoutId) {
+                    clearTimeout(telegramResponseTimeoutId);
+                    telegramResponseTimeoutId = null;
+                }
+
                 try {
-                    const sendAttemptInitiated = await confirmSelection(); // confirmSelection теперь возвращает boolean
+                    const sendAttemptInitiated = await confirmSelection();
                     
-                    if (!sendAttemptInitiated) {
-                        // Если отправка не была инициирована (например, ошибка до tg.sendData или товары не выбраны)
-                        // confirmSelection уже показал alert с причиной.
-                        // Просто разблокируем кнопку.
+                    if (sendAttemptInitiated) {
+                        // Если tg.sendData() был вызван, устанавливаем таймаут
+                        console.log('[DEBUG] Установка таймаута для ответа от Telegram (20 секунд)');
+                        telegramResponseTimeoutId = setTimeout(() => {
+                            console.error('[TIMEOUT] Нет ответа от Telegram в течение 20 секунд.');
+                            alert('Не удалось получить ответ от Telegram. Пожалуйста, проверьте ваше соединение и попробуйте снова.');
+                            if (tg.MainButton) {
+                                tg.MainButton.hideProgress();
+                                tg.MainButton.enable();
+                            }
+                            telegramResponseTimeoutId = null; // Сбрасываем ID таймаута
+                        }, 20000); // 20 секунд
+                    } else {
+                        // Если отправка не была инициирована (ошибка до tg.sendData или товары не выбраны)
                         if (tg.MainButton) {
                             tg.MainButton.hideProgress();
                             tg.MainButton.enable();
                         }
                     }
-                    // Если sendAttemptInitiated = true, значит tg.sendData() был вызван.
-                    // Кнопка остается заблокированной, ждем событий messageSent или messageError.
                 } catch (error) {
-                    // Этот catch для непредвиденных ошибок, которые мог пропустить confirmSelection
                     console.error('[ERROR] Непредвиденная ошибка в обработчике MainButton:', error);
                     alert('Произошла критическая ошибка. Пожалуйста, попробуйте снова.');
                     if (tg.MainButton) {
@@ -256,7 +272,12 @@
             
             // Обработчик успешной отправки данных
             tg.onEvent('messageSent', function() {
-                console.log('[DEBUG] Получено подтверждение отправки сообщения от бота');
+                console.log('[DEBUG] Получено подтверждение отправки сообщения от бота (messageSent)');
+                if (telegramResponseTimeoutId) {
+                    clearTimeout(telegramResponseTimeoutId);
+                    telegramResponseTimeoutId = null;
+                    console.log('[DEBUG] Таймаут отменен из-за messageSent.');
+                }
                 showSaveNotification();
                 if (tg.MainButton) tg.MainButton.hideProgress();
                 tg.close();
@@ -264,7 +285,12 @@
             
             // Обработчик ошибки отправки данных
             tg.onEvent('messageError', function(error) {
-                console.error('[DEBUG] Ошибка отправки сообщения Telegram:', error);
+                console.error('[DEBUG] Ошибка отправки сообщения Telegram (messageError):', error);
+                if (telegramResponseTimeoutId) {
+                    clearTimeout(telegramResponseTimeoutId);
+                    telegramResponseTimeoutId = null;
+                    console.log('[DEBUG] Таймаут отменен из-за messageError.');
+                }
                 alert('Ошибка отправки данных в Telegram: ' + String(error));
                 if (tg.MainButton) {
                     tg.MainButton.hideProgress();
@@ -775,10 +801,14 @@
         
         // Функция для отправки данных в Telegram
         async function sendDataToTelegram(selectedItems) {
-            console.log('[DEBUG] Начало отправки данных в Telegram');
+            console.log('[DEBUG] Начало sendDataToTelegram');
             
             if (!tg) {
-                console.error('[ERROR] Telegram WebApp не инициализирован');
+                console.error('[ERROR] Telegram WebApp (tg) не инициализирован в sendDataToTelegram.');
+                return false;
+            }
+            if (typeof tg.sendData !== 'function') {
+                console.error('[ERROR] tg.sendData не является функцией в sendDataToTelegram.');
                 return false;
             }
 
@@ -788,15 +818,13 @@
                     selected_items: selectedItems
                 });
                 
-                console.log('[DEBUG] Подготовка данных для отправки:', dataToSend);
-                
-                // Отправляем данные напрямую
+                console.log('[DEBUG] Подготовлены данные для отправки в Telegram:', dataToSend);
+                console.log('[DEBUG] Вызов tg.sendData()...');
                 tg.sendData(dataToSend);
-                console.log('[DEBUG] Данные отправлены в Telegram');
-                
+                console.log('[SUCCESS] tg.sendData() успешно вызван.');
                 return true;
             } catch (error) {
-                console.error('[ERROR] Ошибка при отправке данных в Telegram:', error);
+                console.error('[ERROR] Синхронная ошибка при вызове tg.sendData():', error);
                 return false;
             }
         }
