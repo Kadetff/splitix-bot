@@ -40,6 +40,13 @@ async def main():
     # Регистрируем команды бота
     await register_commands(bot)
     
+    # Низкоуровневый обработчик ВСЕХ входящих обновлений для отладки
+    @dp.update.outer_middleware()
+    async def raw_update_logger(handler, event, data):
+        logger.critical(f"!!!! RAW UPDATE RECEIVED BY DISPATCHER !!!! Type: {type(event)}")
+        logger.critical(f"Raw event data: {event.model_dump_json(indent=2) if hasattr(event, 'model_dump_json') else str(event)}")
+        return await handler(event, data)
+    
     # Регистрируем обработчики
     dp.include_router(webapp.router)
     dp.include_router(photo.router)
