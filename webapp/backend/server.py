@@ -97,6 +97,16 @@ def index():
     index_path = os.path.join(frontend_dir, 'index.html')
     return send_file(index_path)
 
+@app.route('/test_webapp')
+def test_webapp_page():
+    """Отдаем тестовый WebApp"""
+    test_page_path = os.path.join(frontend_dir, 'test_webapp.html')
+    if os.path.exists(test_page_path):
+        return send_file(test_page_path)
+    else:
+        logger.error(f"Тестовый файл test_webapp.html не найден по пути: {test_page_path}")
+        return "Тестовый файл не найден", 404
+
 @app.route('/health')
 def health_check():
     """Проверка работоспособности API"""

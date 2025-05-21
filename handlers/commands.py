@@ -63,4 +63,32 @@ async def cmd_help(message: Message):
 async def cmd_split(message: Message, state: FSMContext):
     """Обработчик команды /split"""
     await state.set_state(ReceiptStates.waiting_for_photo)
-    await message.answer("📸 Пожалуйста, пришлите фото чека.") 
+    await message.answer("📸 Пожалуйста, пришлите фото чека.")
+
+@router.message(Command("testwebapp"))
+async def cmd_test_webapp(message: Message):
+    """Отправляет кнопку для открытия тестового WebApp."""
+    if not WEBAPP_URL:
+        await message.answer("Ошибка: URL веб-приложения не настроен в конфигурации.")
+        logger.error("WEBAPP_URL не настроен, не могу открыть тестовый WebApp.")
+        return
+
+    # URL для тестового WebApp будет WEBAPP_URL + '/test_webapp'
+    # Важно: WEBAPP_URL должен быть базовым URL (например, https://yourdomain.com)
+    # без завершающего слеша, если вы его так используете, или с ним, если ваш Flask настроен ожидать его.
+    # В текущей реализации server.py (маршрут /test_webapp) он ожидает, что WEBAPP_URL не имеет слеша на конце.
+    test_webapp_url = f"{WEBAPP_URL}/test_webapp"
+    
+    logger.info(f"Формирую кнопку для тестового WebApp: {test_webapp_url}")
+
+    keyboard = InlineKeyboardBuilder()
+    keyboard.row(
+        InlineKeyboardButton(
+            text="🧪 Открыть тестовый WebApp",
+            web_app=WebAppInfo(url=test_webapp_url)
+        )
+    )
+    await message.answer(
+        "Нажмите кнопку ниже, чтобы открыть тестовое веб-приложение для отладки.",
+        reply_markup=keyboard.as_markup()
+    ) 
