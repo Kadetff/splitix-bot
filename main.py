@@ -54,7 +54,8 @@ async def register_commands(bot: Bot):
     commands = [
         BotCommand(command="start", description="👋 Начать работу с ботом"),
         BotCommand(command="help", description="❓ Помощь по использованию бота"),
-        BotCommand(command="split", description="📇 Разделить чек (в группе)")
+        BotCommand(command="split", description="📇 Разделить чек (в группе)"),
+        BotCommand(command="testwebapp", description="🧪 Тестовый WebApp")
     ]
     await bot.set_my_commands(commands)
     logger.info("Команды бота зарегистрированы")
