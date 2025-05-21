@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тестовый WebApp</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; text-align: center; }
+        button { font-size: 18px; padding: 10px 20px; cursor: pointer; }
+        #debug { margin-top: 20px; padding: 10px; background-color: #f0f0f0; border: 1px solid #ccc; text-align: left; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Тестовый WebApp</h1>
+    <button id="sendTestDataBtn">Отправить тестовые данные</button>
+    <div id="debug">Логи фронтенда:<br></div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        const debugLog = document.getElementById('debug');
+
+        function logToDebug(message) {
+            console.log(message);
+            debugLog.innerHTML += message + '\n';
+        }
+
+        if (tg) {
+            tg.expand();
+            logToDebug('Telegram WebApp SDK загружен и готов.');
+            logToDebug('initData: ' + (tg.initData ? 'присутствует' : 'ОТСУТСТВУЕТ'));
+            logToDebug('initDataUnsafe: ' + JSON.stringify(tg.initDataUnsafe, null, 2));
+
+            if (!tg.initData) {
+                logToDebug('[CRITICAL] initData отсутствует! tg.sendData может не работать корректно. Откройте WebApp из Telegram.');
+                // alert('Критическая ошибка: initData отсутствует. Пожалуйста, откройте это веб-приложение через кнопку в Telegram.');
+            }
+             if (!tg.initDataUnsafe || !tg.initDataUnsafe.query_id) {
+                logToDebug('[CRITICAL] query_id отсутствует в initDataUnsafe! tg.sendData будет вызван без него, что может привести к невозможности вызвать answerWebAppQuery на бэкенде.');
+            }
+
+
+            tg.MainButton.setText("Отправить из MainButton");
+            tg.MainButton.show();
+            tg.MainButton.onClick(function() {
+                sendData("main_button_click");
+            });
+            
+            document.getElementById('sendTestDataBtn').addEventListener('click', function() {
+                sendData("html_button_click");
+            });
+
+        } else {
+            logToDebug('Telegram WebApp SDK не найден. Убедитесь, что открываете в клиенте Telegram.');
+        }
+
+        function sendData(source) {
+            logToDebug('Функция sendData вызвана от: ' + source);
+            if (!tg) {
+                alert('Telegram WebApp не инициализирован.');
+                logToDebug('Ошибка: tg не инициализирован в sendData.');
+                return;
+            }
+
+            const queryId = tg.initDataUnsafe ? tg.initDataUnsafe.query_id : null;
+            if (!queryId) {
+                logToDebug('[WARN] query_id отсутствует в initDataUnsafe. tg.sendData будет вызван без него.');
+                 // alert('Внимание: query_id не найден. Данные будут отправлены, но бот может не смочь подтвердить получение (answerWebAppQuery).');
+            }
+
+            const dataToSend = {
+                event_source: source,
+                timestamp: new Date().toISOString(),
+                message: "Привет от тестового WebApp!",
+                query_id: queryId // query_id будет null, если не найден
+            };
+            const jsonString = JSON.stringify(dataToSend);
+
+            logToDebug('Подготовлены данные: ' + jsonString);
+            try {
+                tg.sendData(jsonString);
+                logToDebug('tg.sendData() ВЫЗВАНА. Данные: ' + jsonString);
+                alert('ФРОНТЕНД: tg.sendData() была вызвана. Проверьте логи бота и консоль разработчика.\nДанные: ' + jsonString);
+            } catch (e) {
+                logToDebug('ОШИБКА при вызове tg.sendData(): ' + e.message);
+                alert('ОШИБКА ФРОНТЕНДА: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html> 
