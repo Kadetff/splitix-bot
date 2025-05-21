@@ -899,7 +899,8 @@
                 console.log('[DEBUG] Подготовлены данные для отправки в Telegram:', dataToSend);
                 console.log('[DEBUG] Вызов tg.sendData()...');
                 tg.sendData(dataToSend);
-                console.log('[SUCCESS] tg.sendData() успешно вызван.');
+                console.log('[SUCCESS] tg.sendData() УСПЕШНО ВЫЗВАН в sendDataToTelegram. Данные:', dataToSend);
+                alert('ФРОНТЕНД: tg.sendData() была вызвана с данными: ' + dataToSend + '\nПроверьте логи бота и консоль разработчика.');
                 return true;
             } catch (error) {
                 console.error('[ERROR] Синхронная ошибка при вызове tg.sendData():', error);

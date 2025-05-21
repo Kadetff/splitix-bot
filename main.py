@@ -6,7 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
-from config.settings import TELEGRAM_BOT_TOKEN, LOG_LEVEL, WEBAPP_URL, USE_OPENAI_GPT_VISION, OPENAI_MODEL
+from config.settings import TELEGRAM_BOT_TOKEN, LOG_LEVEL
 from handlers import photo, callbacks, commands, webapp, inline
 
 # Настраиваем логирование
@@ -26,7 +26,7 @@ message_states: dict[int, dict[str, Any]] = {}
 # Экспорт message_states для использования в обработчиках
 callbacks.message_states = message_states
 photo.message_states = message_states
-webapp.message_states = message_states
+# webapp.message_states = message_states # Временно комментируем для отладки
 
 async def main():
     logger.info(f"Бот запускается с OpenAI GPT Vision и подтверждением выбора...")

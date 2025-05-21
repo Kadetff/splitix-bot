@@ -16,6 +16,7 @@ if not logger.handlers: # Предотвращаем дублирование х
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
+logger.propagate = False # Предотвращаем дублирование логов в консоли
 
 
 router = Router()
