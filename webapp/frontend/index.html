@@ -478,14 +478,13 @@
             const testDataBtnElement = document.getElementById('send-test-data-btn');
             console.log('[DEBUG_SETUP] Элемент кнопки "send-test-data-btn":', testDataBtnElement);
 
-            // Обработчик для кнопки отправки тестовых данных - МАКСИМАЛЬНО УПРОЩЕННЫЙ ДЛЯ ТЕСТА
+            // Обработчик для кнопки отправки тестовых данных - РАСШИРЕННАЯ ОТЛАДКА
             if (testDataBtnElement) {
                 testDataBtnElement.addEventListener('click', function() {
-                    // Сначала alert, потом console.error
-                    alert('Упрощенный тестовый обработчик кнопки СЕЙЧАС БУДЕТ ЛОГ!');
-                    console.error('[DEBUG_TEST_SIMPLE_ERROR] Нажата кнопка "Отправить тестовые данные" (лог через console.error).');
+                    console.log('[TEST] Нажата кнопка отправки тестовых данных');
+                    testDirectWebAppSend();
                 });
-                console.log('[DEBUG_SETUP] Упрощенный обработчик для "send-test-data-btn" все еще зарегистрирован (версия с console.error).');
+                console.log('[DEBUG_SETUP] Обработчик для "send-test-data-btn" зарегистрирован.');
             } else {
                 console.error('[DEBUG_SETUP_ERROR] Не удалось найти элемент кнопки с ID "send-test-data-btn". Обработчик не зарегистрирован.');
             }
@@ -528,26 +527,68 @@
             alert(JSON.stringify(info, null, 2));
         }
         
-        // Функция для отправки тестовых данных
-        function sendTestData() {
-            if (!tg || typeof tg.sendData !== 'function') {
-                alert('Telegram WebApp не инициализирован или метод sendData недоступен');
+        // Функция для тестирования прямой отправки WebApp данных
+        function testDirectWebAppSend() {
+            console.log('[TEST] Начало тестирования отправки WebApp данных');
+            debugInfo.innerHTML += `[TEST] Начало тестирования прямой отправки...<br>`;
+            
+            // Проверяем инициализацию Telegram WebApp
+            if (!tg) {
+                console.error('[TEST] Telegram WebApp не инициализирован');
+                debugInfo.innerHTML += `<span style="color: red;">[TEST] Telegram WebApp не инициализирован</span><br>`;
+                alert('Ошибка: Telegram WebApp не инициализирован');
                 return;
             }
             
-            const testData = JSON.stringify({
-                messageId: 12345,
-                selectedItems: {"0": 1, "1": 2}
-            });
+            if (typeof tg.sendData !== 'function') {
+                console.error('[TEST] tg.sendData не является функцией');
+                debugInfo.innerHTML += `<span style="color: red;">[TEST] tg.sendData не является функцией</span><br>`;
+                alert('Ошибка: tg.sendData недоступен');
+                return;
+            }
             
-            debugInfo.innerHTML += `Отправка тестовых данных: ${testData}<br>`;
+            // Проверяем наличие критически важных данных
+            if (!initData) {
+                console.error('[TEST] initData отсутствует - это критично для работы WebApp');
+                debugInfo.innerHTML += `<span style="color: red;">[TEST] initData отсутствует - критично!</span><br>`;
+                alert('Предупреждение: initData отсутствует. WebApp может не работать корректно.');
+            }
+            
+            if (!queryId) {
+                console.warn('[TEST] query_id отсутствует - бот не сможет вызвать answerWebAppQuery');
+                debugInfo.innerHTML += `<span style="color: orange;">[TEST] query_id отсутствует</span><br>`;
+            }
+            
+            // Формируем тестовые данные
+            const testData = {
+                action: 'test',
+                timestamp: Date.now(),
+                message_id: messageId || 12345,
+                query_id: queryId || null,
+                user_id: userId || 67890,
+                test_data: {
+                    selected_items: {"0": 1, "1": 2},
+                    note: "Тестовая отправка данных от WebApp"
+                }
+            };
+            
+            const testDataJson = JSON.stringify(testData);
+            console.log('[TEST] Подготовлены тестовые данные:', testDataJson);
+            debugInfo.innerHTML += `[TEST] Данные для отправки: ${testDataJson}<br>`;
             
             try {
-                tg.sendData(testData);
-                alert('Тестовые данные отправлены!');
-            } catch (e) {
-                debugInfo.innerHTML += `<span style="color: red;">Ошибка при отправке тестовых данных: ${e.message}</span><br>`;
-                alert(`Ошибка при отправке тестовых данных: ${e.message}`);
+                console.log('[TEST] Вызов tg.sendData()...');
+                debugInfo.innerHTML += `[TEST] Вызываем tg.sendData()...<br>`;
+                
+                tg.sendData(testDataJson);
+                
+                console.log('[TEST] tg.sendData() вызван успешно');
+                debugInfo.innerHTML += `<span style="color: green;">[TEST] tg.sendData() вызван успешно!</span><br>`;
+                alert('Тестовые данные отправлены через tg.sendData(). Проверьте логи бота.');
+            } catch (error) {
+                console.error('[TEST] Ошибка при вызове tg.sendData():', error);
+                debugInfo.innerHTML += `<span style="color: red;">[TEST] Ошибка: ${error.message}</span><br>`;
+                alert(`Ошибка при отправке: ${error.message}`);
             }
         }
         
@@ -1015,6 +1056,71 @@
             }, 2000);
         }
         
+        // Функция для тестирования прямой отправки WebApp данных
+        function testDirectWebAppSend() {
+            console.log('[TEST] Начало тестирования отправки WebApp данных');
+            debugInfo.innerHTML += `[TEST] Начало тестирования прямой отправки...<br>`;
+            
+            // Проверяем инициализацию Telegram WebApp
+            if (!tg) {
+                console.error('[TEST] Telegram WebApp не инициализирован');
+                debugInfo.innerHTML += `<span style="color: red;">[TEST] Telegram WebApp не инициализирован</span><br>`;
+                alert('Ошибка: Telegram WebApp не инициализирован');
+                return;
+            }
+            
+            if (typeof tg.sendData !== 'function') {
+                console.error('[TEST] tg.sendData не является функцией');
+                debugInfo.innerHTML += `<span style="color: red;">[TEST] tg.sendData не является функцией</span><br>`;
+                alert('Ошибка: tg.sendData недоступен');
+                return;
+            }
+            
+            // Проверяем наличие критически важных данных
+            if (!initData) {
+                console.error('[TEST] initData отсутствует - это критично для работы WebApp');
+                debugInfo.innerHTML += `<span style="color: red;">[TEST] initData отсутствует - критично!</span><br>`;
+                alert('Предупреждение: initData отсутствует. WebApp может не работать корректно.');
+            }
+            
+            if (!queryId) {
+                console.warn('[TEST] query_id отсутствует - бот не сможет вызвать answerWebAppQuery');
+                debugInfo.innerHTML += `<span style="color: orange;">[TEST] query_id отсутствует</span><br>`;
+            }
+            
+            // Формируем тестовые данные
+            const testData = {
+                action: 'test',
+                timestamp: Date.now(),
+                message_id: messageId || 12345,
+                query_id: queryId || null,
+                user_id: userId || 67890,
+                test_data: {
+                    selected_items: {"0": 1, "1": 2},
+                    note: "Тестовая отправка данных от WebApp"
+                }
+            };
+            
+            const testDataJson = JSON.stringify(testData);
+            console.log('[TEST] Подготовлены тестовые данные:', testDataJson);
+            debugInfo.innerHTML += `[TEST] Данные для отправки: ${testDataJson}<br>`;
+            
+            try {
+                console.log('[TEST] Вызов tg.sendData()...');
+                debugInfo.innerHTML += `[TEST] Вызываем tg.sendData()...<br>`;
+                
+                tg.sendData(testDataJson);
+                
+                console.log('[TEST] tg.sendData() вызван успешно');
+                debugInfo.innerHTML += `<span style="color: green;">[TEST] tg.sendData() вызван успешно!</span><br>`;
+                alert('Тестовые данные отправлены через tg.sendData(). Проверьте логи бота.');
+            } catch (error) {
+                console.error('[TEST] Ошибка при вызове tg.sendData():', error);
+                debugInfo.innerHTML += `<span style="color: red;">[TEST] Ошибка: ${error.message}</span><br>`;
+                alert(`Ошибка при отправке: ${error.message}`);
+            }
+        }
+
         // Запускаем приложение при загрузке страницы
         document.addEventListener('DOMContentLoaded', initApp);
     </script>

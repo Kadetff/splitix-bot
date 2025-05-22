@@ -45,6 +45,16 @@ async def main():
     async def raw_update_logger(handler, event, data):
         logger.critical(f"!!!! RAW UPDATE RECEIVED BY DISPATCHER !!!! Type: {type(event)}")
         logger.critical(f"Raw event data: {event.model_dump_json(indent=2) if hasattr(event, 'model_dump_json') else str(event)}")
+        
+        # Специальная проверка для сообщений
+        if hasattr(event, 'message') and event.message:
+            msg = event.message
+            logger.critical(f"!!!! MESSAGE DETAILS !!!! content_type: {msg.content_type}")
+            if hasattr(msg, 'web_app_data') and msg.web_app_data:
+                logger.critical(f"!!!! WEB_APP_DATA FOUND !!!! data: {msg.web_app_data.data}")
+            else:
+                logger.critical(f"!!!! NO WEB_APP_DATA in message !!!!")
+        
         return await handler(event, data)
     
     # Регистрируем обработчики

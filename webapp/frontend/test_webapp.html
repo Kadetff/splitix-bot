@@ -55,36 +55,84 @@
         }
 
         function sendData(source) {
+            logToDebug('=== НАЧАЛО ОТПРАВКИ ДАННЫХ ===');
             logToDebug('Функция sendData вызвана от: ' + source);
+            logToDebug('Проверка состояния Telegram WebApp...');
+            
+            // Детальная проверка состояния tg объекта
             if (!tg) {
-                alert('Telegram WebApp не инициализирован.');
-                logToDebug('Ошибка: tg не инициализирован в sendData.');
+                logToDebug('[CRITICAL ERROR] Telegram WebApp объект не инициализирован (tg = null/undefined)');
+                alert('Критическая ошибка: Telegram WebApp не инициализирован.');
                 return;
             }
-
+            
+            if (typeof tg.sendData !== 'function') {
+                logToDebug('[CRITICAL ERROR] tg.sendData не является функцией. Тип: ' + typeof tg.sendData);
+                alert('Критическая ошибка: tg.sendData недоступен.');
+                return;
+            }
+            
+            logToDebug('[OK] tg объект и tg.sendData доступны');
+            
+            // Проверка критически важных данных
+            logToDebug('Проверка критически важных данных...');
+            logToDebug('tg.initData: ' + (tg.initData ? 'ПРИСУТСТВУЕТ (длина: ' + tg.initData.length + ')' : 'ОТСУТСТВУЕТ'));
+            logToDebug('tg.initDataUnsafe: ' + JSON.stringify(tg.initDataUnsafe, null, 2));
+            
             const queryId = tg.initDataUnsafe ? tg.initDataUnsafe.query_id : null;
+            const userId = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null;
+            
+            logToDebug('Извлеченные данные:');
+            logToDebug('- query_id: ' + (queryId || 'ОТСУТСТВУЕТ'));
+            logToDebug('- user_id: ' + (userId || 'ОТСУТСТВУЕТ'));
+            
             if (!queryId) {
-                logToDebug('[WARN] query_id отсутствует в initDataUnsafe. tg.sendData будет вызван без него.');
-                 // alert('Внимание: query_id не найден. Данные будут отправлены, но бот может не смочь подтвердить получение (answerWebAppQuery).');
+                logToDebug('[WARNING] query_id отсутствует! Бот не сможет вызвать answerWebAppQuery');
+            }
+            
+            if (!userId) {
+                logToDebug('[WARNING] user_id отсутствует! Это может быть проблемой для идентификации');
             }
 
+            // Формирование данных для отправки
             const dataToSend = {
+                test_type: 'test_webapp_send',
                 event_source: source,
                 timestamp: new Date().toISOString(),
-                message: "Привет от тестового WebApp!",
-                query_id: queryId // query_id будет null, если не найден
+                message: "Тестовое сообщение от test_webapp.html",
+                query_id: queryId,
+                user_id: userId,
+                webapp_info: {
+                    initData_available: !!tg.initData,
+                    initData_length: tg.initData ? tg.initData.length : 0,
+                    initDataUnsafe_available: !!tg.initDataUnsafe,
+                    browser_info: navigator.userAgent
+                }
             };
-            const jsonString = JSON.stringify(dataToSend);
-
-            logToDebug('Подготовлены данные: ' + jsonString);
+            
+            const jsonString = JSON.stringify(dataToSend, null, 2);
+            logToDebug('Подготовлены данные для отправки:');
+            logToDebug(jsonString);
+            
+            // Попытка отправки
+            logToDebug('=== ПОПЫТКА ОТПРАВКИ ===');
             try {
-                tg.sendData(jsonString);
-                logToDebug('tg.sendData() ВЫЗВАНА. Данные: ' + jsonString);
-                alert('ФРОНТЕНД: tg.sendData() была вызвана. Проверьте логи бота и консоль разработчика.\nДанные: ' + jsonString);
-            } catch (e) {
-                logToDebug('ОШИБКА при вызове tg.sendData(): ' + e.message);
-                alert('ОШИБКА ФРОНТЕНДА: ' + e.message);
+                logToDebug('Вызов tg.sendData()...');
+                tg.sendData(JSON.stringify(dataToSend));
+                logToDebug('[SUCCESS] tg.sendData() УСПЕШНО ВЫЗВАНА!');
+                logToDebug('Отправленные данные: ' + JSON.stringify(dataToSend));
+                
+                alert('✅ УСПЕХ: tg.sendData() была вызвана!\n\nТеперь проверьте:\n1. Логи бота в терминале\n2. Получает ли бот web_app_data\n\nОтправленные данные:\n' + JSON.stringify(dataToSend, null, 2));
+            } catch (error) {
+                logToDebug('[CRITICAL ERROR] Исключение при вызове tg.sendData():');
+                logToDebug('Тип ошибки: ' + error.name);
+                logToDebug('Сообщение ошибки: ' + error.message);
+                logToDebug('Стек ошибки: ' + error.stack);
+                
+                alert('❌ ОШИБКА при отправке:\n' + error.name + ': ' + error.message + '\n\nПодробности в консоли и логах на странице.');
             }
+            
+            logToDebug('=== КОНЕЦ ОТПРАВКИ ДАННЫХ ===');
         }
     </script>
 </body>

@@ -55,8 +55,16 @@ async def handle_webapp_data_specific_filter(message: Message):
         # так как сам фильтр уже гарантирует наличие message.web_app_data
         logger.error("!!!! DEBUG_WEBAPP_ROUTER: F.web_app_data triggered, but web_app_data or data is missing (SHOULD NOT HAPPEN) !!!!")
 
-# Можно добавить и универсальный обработчик ПОСЛЕ специфичного, если нужно отлавливать 
-# другие типы сообщений, приходящие в этот роутер (но он не должен ловить команды, если webapp.router первый).
-# @router.message()
-# async def handle_other_messages_in_webapp_router(message: Message):
-#     logger.info(f"[webapp.router] Received a message NOT matching F.web_app_data: {message.content_type}") 
+# Универсальный обработчик для отладки всех сообщений в webapp роутере
+@router.message()
+async def handle_all_messages_webapp_router(message: Message):
+    logger.critical(f"!!!! WEBAPP_ROUTER: Получено сообщение (НЕ F.web_app_data) !!!! content_type: {message.content_type}")
+    logger.critical(f"!!!! WEBAPP_ROUTER: Полные данные сообщения: {message.model_dump_json(indent=2)}")
+    
+    # Проверяем, есть ли web_app_data в этом сообщении (хотя фильтр его не поймал)
+    if hasattr(message, 'web_app_data') and message.web_app_data:
+        logger.critical(f"!!!! WEBAPP_ROUTER: НАЙДЕНО web_app_data в fallback обработчике !!!! data: {message.web_app_data.data}")
+        # Перенаправляем на основной обработчик
+        await handle_webapp_data_specific_filter(message)
+    else:
+        logger.critical(f"!!!! WEBAPP_ROUTER: web_app_data отсутствует в fallback обработчике !!!!") 
