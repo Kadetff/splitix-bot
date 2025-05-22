@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 async def init_app():
     """Инициализация и запуск объединенного приложения."""
     
+    logger.info("Инициализация объединенного приложения...")
+    
     # Создаем основное приложение с ботом
     bot_app = await create_app()
     
