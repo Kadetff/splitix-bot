@@ -68,8 +68,10 @@ async def cmd_split(message: Message, state: FSMContext):
 @router.message(Command("testwebapp"))
 async def cmd_test_webapp(message: Message):
     """Отправляет кнопку для открытия тестового WebApp."""
+    logger.critical(f"!!!! КОМАНДА /testwebapp ПОЛУЧЕНА !!!! WEBAPP_URL: {WEBAPP_URL}")
+    
     if not WEBAPP_URL:
-        await message.answer("Ошибка: URL веб-приложения не настроен в конфигурации.")
+        await message.answer("❌ Ошибка: URL веб-приложения не настроен в конфигурации.")
         logger.error("WEBAPP_URL не настроен, не могу открыть тестовый WebApp.")
         return
 

@@ -57,12 +57,13 @@ async def main():
         
         return await handler(event, data)
     
-    # Регистрируем обработчики
-    dp.include_router(webapp.router)
-    dp.include_router(photo.router)
-    dp.include_router(callbacks.router)
-    dp.include_router(commands.router)
-    dp.include_router(inline.router)
+    # Регистрируем обработчики (ВАЖНО: порядок имеет значение!)
+    # Сначала специфичные обработчики, потом универсальные
+    dp.include_router(commands.router)    # Команды должны быть первыми
+    dp.include_router(callbacks.router)   # Callback-кнопки
+    dp.include_router(photo.router)       # Обработка фотографий
+    dp.include_router(inline.router)      # Inline-режим
+    dp.include_router(webapp.router)      # WebApp (с fallback) - ПОСЛЕДНИМ!
     
     await dp.start_polling(bot)
 
