@@ -29,13 +29,23 @@ async def init_app():
     # Создаем WSGI handler для Flask
     wsgi_handler = WSGIHandler(flask_app)
     
-    # Добавляем маршруты для WebApp
-    bot_app.router.add_route('*', '/', wsgi_handler)
-    bot_app.router.add_route('*', '/test_webapp', wsgi_handler)
-    bot_app.router.add_route('*', '/api/{path:.*}', wsgi_handler)
-    bot_app.router.add_route('*', '/health', wsgi_handler)
-    bot_app.router.add_route('*', '/maintenance/{path:.*}', wsgi_handler)
-    bot_app.router.add_route('*', '/{message_id:[0-9]+}', wsgi_handler)
+    # Добавляем специфичные маршруты для WebApp (чтобы не перехватить webhook)
+    # Корневая страница
+    bot_app.router.add_route('GET', '/', wsgi_handler)
+    bot_app.router.add_route('GET', '/{path_info}', wsgi_handler)
+    
+    # Тестовая страница WebApp  
+    bot_app.router.add_route('GET', '/test_webapp{path_info:.*}', wsgi_handler)
+    
+    # API маршруты
+    bot_app.router.add_route('*', '/api/{path_info:.*}', wsgi_handler)
+    
+    # Маршруты для чеков (числовые ID)
+    bot_app.router.add_route('GET', '/{message_id:[0-9]+}{path_info:.*}', wsgi_handler)
+    
+    # Утилитарные маршруты
+    bot_app.router.add_route('GET', '/health{path_info:.*}', wsgi_handler)
+    bot_app.router.add_route('*', '/maintenance/{path_info:.*}', wsgi_handler)
     
     logger.info("Объединенный сервер (Telegram Bot + WebApp) готов к запуску")
     return bot_app
