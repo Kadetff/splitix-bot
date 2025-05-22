@@ -30,6 +30,17 @@
             logToDebug('Telegram WebApp SDK загружен и готов.');
             logToDebug('initData: ' + (tg.initData ? 'присутствует' : 'ОТСУТСТВУЕТ'));
             logToDebug('initDataUnsafe: ' + JSON.stringify(tg.initDataUnsafe, null, 2));
+            
+            // Добавляем обработчики событий для отслеживания отправки
+            tg.onEvent('messageSent', function() {
+                logToDebug('🎉 [EVENT] messageSent - Бот получил и обработал данные!');
+                alert('🎉 УСПЕХ! Бот получил данные (событие messageSent)');
+            });
+            
+            tg.onEvent('messageError', function(error) {
+                logToDebug('❌ [EVENT] messageError - Ошибка при отправке: ' + JSON.stringify(error));
+                alert('❌ ОШИБКА! Не удалось отправить данные боту: ' + JSON.stringify(error));
+            });
 
             if (!tg.initData) {
                 logToDebug('[CRITICAL] initData отсутствует! tg.sendData может не работать корректно. Откройте WebApp из Telegram.');
@@ -121,6 +132,17 @@
                 tg.sendData(JSON.stringify(dataToSend));
                 logToDebug('[SUCCESS] tg.sendData() УСПЕШНО ВЫЗВАНА!');
                 logToDebug('Отправленные данные: ' + JSON.stringify(dataToSend));
+                logToDebug('[INFO] ⏱️ Ожидаем ответ от бота в течение 20 секунд...');
+                
+                // Устанавливаем таймер для проверки
+                setTimeout(() => {
+                    logToDebug('[TIMEOUT] ⏰ Прошло 20 секунд после отправки');
+                    logToDebug('[ACTION] Если бот НЕ получил web_app_data, проверьте:');
+                    logToDebug('1. Настройки домена в BotFather (/setdomain)');
+                    logToDebug('2. HTTPS сертификат домена');
+                    logToDebug('3. Версию Telegram клиента');
+                    alert('⏰ ПРОШЛО 20 СЕКУНД\n\nЕсли в логах бота НЕТ web_app_data сообщений, проверьте:\n\n1. Настройки домена в BotFather\n2. HTTPS сертификат\n3. Версию Telegram клиента');
+                }, 20000);
                 
                 alert('✅ УСПЕХ: tg.sendData() была вызвана!\n\nТеперь проверьте:\n1. Логи бота в терминале\n2. Получает ли бот web_app_data\n\nОтправленные данные:\n' + JSON.stringify(dataToSend, null, 2));
             } catch (error) {

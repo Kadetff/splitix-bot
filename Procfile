@@ -1,2 +1,2 @@
-web: python webapp/run_webapp.py
-worker: python main.py
+web: python webapp/backend/server.py
+worker: python main_webhook_simple.py
