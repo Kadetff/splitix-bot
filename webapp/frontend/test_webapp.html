@@ -6,155 +6,215 @@
     <title>Тестовый WebApp</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; text-align: center; }
-        button { font-size: 18px; padding: 10px 20px; cursor: pointer; }
-        #debug { margin-top: 20px; padding: 10px; background-color: #f0f0f0; border: 1px solid #ccc; text-align: left; white-space: pre-wrap; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
+            padding: 20px; 
+            text-align: center; 
+            margin: 0;
+            background: var(--tg-theme-bg-color, #fff);
+            color: var(--tg-theme-text-color, #000);
+        }
+        .content {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px 0;
+        }
+        button { 
+            font-size: 16px; 
+            padding: 12px 24px; 
+            cursor: pointer; 
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, #fff);
+            border: none;
+            border-radius: 8px;
+            margin: 10px;
+            width: 100%;
+            max-width: 280px;
+        }
+        button:hover {
+            opacity: 0.8;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .status-loading {
+            background: var(--tg-theme-hint-color, #999);
+            color: var(--tg-theme-bg-color, #fff);
+        }
+        .status-success {
+            background: #4CAF50;
+            color: white;
+        }
+        .status-error {
+            background: #f44336;
+            color: white;
+        }
+        #debug { 
+            margin-top: 20px; 
+            padding: 10px; 
+            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0); 
+            border: 1px solid var(--tg-theme-hint-color, #ccc); 
+            text-align: left; 
+            white-space: pre-wrap; 
+            font-size: 12px;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
-    <h1>Тестовый WebApp</h1>
-    <button id="sendTestDataBtn">Отправить тестовые данные</button>
-    <div id="debug">Логи фронтенда:<br></div>
+    <div class="content">
+        <h1>🧪 Тест WebApp</h1>
+        <p>Проверяем передачу данных боту</p>
+        
+        <div id="status" class="status-loading">Инициализация...</div>
+        
+        <button id="sendTestDataBtn">📤 Отправить тестовое сообщение</button>
+        <button id="loadTestDataBtn">📊 Загрузить тестовые данные</button>
+        <button id="checkWebAppBtn">🔍 Проверить Telegram WebApp</button>
+        <button id="testSaveBtn">💾 Проверить сохранение</button>
+        
+        <div id="debug">Логи загрузки...<br></div>
+    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         const debugLog = document.getElementById('debug');
+        const statusDiv = document.getElementById('status');
 
         function logToDebug(message) {
             console.log(message);
-            debugLog.innerHTML += message + '\n';
+            debugLog.innerHTML += new Date().toISOString().slice(11, 19) + ': ' + message + '\n';
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'loading') {
+            statusDiv.textContent = message;
+            statusDiv.className = 'status-' + type;
+        }
+
+        function closeWebApp(message = 'Данные отправлены боту') {
+            logToDebug('Закрытие WebApp через 1 секунду...');
+            updateStatus(message, 'success');
+            
+            setTimeout(() => {
+                if (tg && typeof tg.close === 'function') {
+                    logToDebug('Вызов tg.close()');
+                    tg.close();
+                } else {
+                    logToDebug('tg.close недоступен, попытка закрыть окно');
+                    window.close();
+                }
+            }, 1000);
         }
 
         if (tg) {
+            tg.ready();
             tg.expand();
-            logToDebug('Telegram WebApp SDK загружен и готов.');
-            logToDebug('initData: ' + (tg.initData ? 'присутствует' : 'ОТСУТСТВУЕТ'));
-            logToDebug('initDataUnsafe: ' + JSON.stringify(tg.initDataUnsafe, null, 2));
+            logToDebug('✅ Telegram WebApp SDK загружен');
             
-            // Добавляем обработчики событий для отслеживания отправки
-            tg.onEvent('messageSent', function() {
-                logToDebug('🎉 [EVENT] messageSent - Бот получил и обработал данные!');
-                alert('🎉 УСПЕХ! Бот получил данные (событие messageSent)');
-            });
-            
-            tg.onEvent('messageError', function(error) {
-                logToDebug('❌ [EVENT] messageError - Ошибка при отправке: ' + JSON.stringify(error));
-                alert('❌ ОШИБКА! Не удалось отправить данные боту: ' + JSON.stringify(error));
-            });
-
-            if (!tg.initData) {
-                logToDebug('[CRITICAL] initData отсутствует! tg.sendData может не работать корректно. Откройте WebApp из Telegram.');
-                // alert('Критическая ошибка: initData отсутствует. Пожалуйста, откройте это веб-приложение через кнопку в Telegram.');
-            }
-             if (!tg.initDataUnsafe || !tg.initDataUnsafe.query_id) {
-                logToDebug('[CRITICAL] query_id отсутствует в initDataUnsafe! tg.sendData будет вызван без него, что может привести к невозможности вызвать answerWebAppQuery на бэкенде.');
-            }
-
-
-            tg.MainButton.setText("Отправить из MainButton");
+            // Настройка основной кнопки
+            tg.MainButton.setText("✅ Подтвердить");
+            tg.MainButton.color = "#4CAF50";
             tg.MainButton.show();
-            tg.MainButton.onClick(function() {
-                sendData("main_button_click");
-            });
             
-            document.getElementById('sendTestDataBtn').addEventListener('click', function() {
-                sendData("html_button_click");
+            // Обработчики событий
+            tg.onEvent('mainButtonClicked', function() {
+                logToDebug('🔘 MainButton нажата');
+                sendData("main_button");
             });
+
+            // Проверяем доступность данных
+            const hasInitData = !!tg.initData;
+            const hasQueryId = !!(tg.initDataUnsafe && tg.initDataUnsafe.query_id);
+            const hasUserId = !!(tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id);
+
+            if (hasInitData && hasQueryId) {
+                updateStatus('✅ WebApp готов к работе', 'success');
+                logToDebug('✅ initData и query_id присутствуют');
+            } else {
+                updateStatus('⚠️ Неполные данные WebApp', 'error');
+                logToDebug('⚠️ initData: ' + hasInitData + ', query_id: ' + hasQueryId);
+            }
+
+            logToDebug('User ID: ' + (hasUserId ? tg.initDataUnsafe.user.id : 'отсутствует'));
 
         } else {
-            logToDebug('Telegram WebApp SDK не найден. Убедитесь, что открываете в клиенте Telegram.');
+            updateStatus('❌ WebApp SDK недоступен', 'error');
+            logToDebug('❌ Telegram WebApp SDK не найден');
         }
 
-        function sendData(source) {
-            logToDebug('=== НАЧАЛО ОТПРАВКИ ДАННЫХ ===');
-            logToDebug('Функция sendData вызвана от: ' + source);
-            logToDebug('Проверка состояния Telegram WebApp...');
+        // Обработчики кнопок
+        document.getElementById('sendTestDataBtn').addEventListener('click', function() {
+            sendData("test_message");
+        });
+
+        document.getElementById('loadTestDataBtn').addEventListener('click', function() {
+            sendData("load_test_data");
+        });
+
+        document.getElementById('checkWebAppBtn').addEventListener('click', function() {
+            sendData("check_webapp");
+        });
+
+        document.getElementById('testSaveBtn').addEventListener('click', function() {
+            sendData("test_save");
+        });
+
+        function sendData(action) {
+            logToDebug('=== Отправка данных: ' + action + ' ===');
+            updateStatus('📤 Отправка данных...', 'loading');
             
-            // Детальная проверка состояния tg объекта
-            if (!tg) {
-                logToDebug('[CRITICAL ERROR] Telegram WebApp объект не инициализирован (tg = null/undefined)');
-                alert('Критическая ошибка: Telegram WebApp не инициализирован.');
+            if (!tg || typeof tg.sendData !== 'function') {
+                logToDebug('❌ tg.sendData недоступен');
+                updateStatus('❌ WebApp API недоступен', 'error');
                 return;
-            }
-            
-            if (typeof tg.sendData !== 'function') {
-                logToDebug('[CRITICAL ERROR] tg.sendData не является функцией. Тип: ' + typeof tg.sendData);
-                alert('Критическая ошибка: tg.sendData недоступен.');
-                return;
-            }
-            
-            logToDebug('[OK] tg объект и tg.sendData доступны');
-            
-            // Проверка критически важных данных
-            logToDebug('Проверка критически важных данных...');
-            logToDebug('tg.initData: ' + (tg.initData ? 'ПРИСУТСТВУЕТ (длина: ' + tg.initData.length + ')' : 'ОТСУТСТВУЕТ'));
-            logToDebug('tg.initDataUnsafe: ' + JSON.stringify(tg.initDataUnsafe, null, 2));
-            
-            const queryId = tg.initDataUnsafe ? tg.initDataUnsafe.query_id : null;
-            const userId = tg.initDataUnsafe && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.id : null;
-            
-            logToDebug('Извлеченные данные:');
-            logToDebug('- query_id: ' + (queryId || 'ОТСУТСТВУЕТ'));
-            logToDebug('- user_id: ' + (userId || 'ОТСУТСТВУЕТ'));
-            
-            if (!queryId) {
-                logToDebug('[WARNING] query_id отсутствует! Бот не сможет вызвать answerWebAppQuery');
-            }
-            
-            if (!userId) {
-                logToDebug('[WARNING] user_id отсутствует! Это может быть проблемой для идентификации');
             }
 
-            // Формирование данных для отправки
+            const queryId = tg.initDataUnsafe && tg.initDataUnsafe.query_id;
+            const userId = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
+
             const dataToSend = {
-                test_type: 'test_webapp_send',
-                event_source: source,
-                timestamp: new Date().toISOString(),
-                message: "Тестовое сообщение от test_webapp.html",
+                action: action,
                 query_id: queryId,
                 user_id: userId,
-                webapp_info: {
-                    initData_available: !!tg.initData,
-                    initData_length: tg.initData ? tg.initData.length : 0,
-                    initDataUnsafe_available: !!tg.initDataUnsafe,
-                    browser_info: navigator.userAgent
+                timestamp: new Date().toISOString(),
+                message: getMessageForAction(action),
+                webapp_data: {
+                    has_init_data: !!tg.initData,
+                    has_query_id: !!queryId,
+                    has_user_id: !!userId,
+                    platform: tg.platform || 'unknown'
                 }
             };
-            
-            const jsonString = JSON.stringify(dataToSend, null, 2);
-            logToDebug('Подготовлены данные для отправки:');
-            logToDebug(jsonString);
-            
-            // Попытка отправки
-            logToDebug('=== ПОПЫТКА ОТПРАВКИ ===');
+
             try {
-                logToDebug('Вызов tg.sendData()...');
+                logToDebug('📤 Вызов tg.sendData()');
                 tg.sendData(JSON.stringify(dataToSend));
-                logToDebug('[SUCCESS] tg.sendData() УСПЕШНО ВЫЗВАНА!');
-                logToDebug('Отправленные данные: ' + JSON.stringify(dataToSend));
-                logToDebug('[INFO] ⏱️ Ожидаем ответ от бота в течение 20 секунд...');
+                logToDebug('✅ Данные отправлены: ' + JSON.stringify(dataToSend, null, 2));
                 
-                // Устанавливаем таймер для проверки
-                setTimeout(() => {
-                    logToDebug('[TIMEOUT] ⏰ Прошло 20 секунд после отправки');
-                    logToDebug('[ACTION] Если бот НЕ получил web_app_data, проверьте:');
-                    logToDebug('1. Настройки домена в BotFather (/setdomain)');
-                    logToDebug('2. HTTPS сертификат домена');
-                    logToDebug('3. Версию Telegram клиента');
-                    alert('⏰ ПРОШЛО 20 СЕКУНД\n\nЕсли в логах бота НЕТ web_app_data сообщений, проверьте:\n\n1. Настройки домена в BotFather\n2. HTTPS сертификат\n3. Версию Telegram клиента');
-                }, 20000);
+                // Автоматическое закрытие WebApp
+                closeWebApp('✅ Сообщение отправлено боту');
                 
-                alert('✅ УСПЕХ: tg.sendData() была вызвана!\n\nТеперь проверьте:\n1. Логи бота в терминале\n2. Получает ли бот web_app_data\n\nОтправленные данные:\n' + JSON.stringify(dataToSend, null, 2));
             } catch (error) {
-                logToDebug('[CRITICAL ERROR] Исключение при вызове tg.sendData():');
-                logToDebug('Тип ошибки: ' + error.name);
-                logToDebug('Сообщение ошибки: ' + error.message);
-                logToDebug('Стек ошибки: ' + error.stack);
-                
-                alert('❌ ОШИБКА при отправке:\n' + error.name + ': ' + error.message + '\n\nПодробности в консоли и логах на странице.');
+                logToDebug('❌ Ошибка отправки: ' + error.message);
+                updateStatus('❌ Ошибка отправки', 'error');
             }
-            
-            logToDebug('=== КОНЕЦ ОТПРАВКИ ДАННЫХ ===');
+        }
+
+        function getMessageForAction(action) {
+            const messages = {
+                test_message: "Тестовое сообщение от WebApp",
+                load_test_data: "Запрос загрузки тестовых данных",
+                check_webapp: "Проверка работы Telegram WebApp API",
+                test_save: "Тест сохранения данных",
+                main_button: "Данные отправлены через MainButton"
+            };
+            return messages[action] || "Неизвестное действие: " + action;
         }
     </script>
 </body>
