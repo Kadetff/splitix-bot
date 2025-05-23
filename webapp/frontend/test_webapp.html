@@ -77,6 +77,7 @@
         <button id="loadTestDataBtn">📊 Загрузить тестовые данные</button>
         <button id="checkWebAppBtn">🔍 Проверить Telegram WebApp</button>
         <button id="testSaveBtn">💾 Проверить сохранение</button>
+        <button id="forceCloseBtn" style="background: #f44336;">🚪 Принудительно закрыть</button>
         
         <div id="debug">Логи загрузки...<br></div>
     </div>
@@ -98,18 +99,53 @@
         }
 
         function closeWebApp(message = 'Данные отправлены боту') {
-            logToDebug('Закрытие WebApp через 1 секунду...');
+            logToDebug('Закрытие WebApp...');
             updateStatus(message, 'success');
             
-            setTimeout(() => {
-                if (tg && typeof tg.close === 'function') {
-                    logToDebug('Вызов tg.close()');
-                    tg.close();
-                } else {
-                    logToDebug('tg.close недоступен, попытка закрыть окно');
-                    window.close();
+            // Принудительно убираем любые ограничения на закрытие
+            if (tg) {
+                try {
+                    tg.enableClosingConfirmation = false;
+                    tg.MainButton.hide();
+                    logToDebug('MainButton скрыта, ограничения убраны');
+                } catch (e) {
+                    logToDebug('Ошибка при убирании ограничений: ' + e.message);
                 }
-            }, 1000);
+            }
+            
+            // Немедленное закрытие без задержки
+            setTimeout(() => {
+                logToDebug('Попытка закрытия методом 1: tg.close()');
+                if (tg && typeof tg.close === 'function') {
+                    try {
+                        tg.close();
+                        logToDebug('✅ tg.close() выполнена');
+                    } catch (e) {
+                        logToDebug('❌ Ошибка tg.close(): ' + e.message);
+                    }
+                }
+                
+                // Дополнительные методы закрытия
+                setTimeout(() => {
+                    logToDebug('Попытка закрытия методом 2: window.close()');
+                    try {
+                        window.close();
+                    } catch (e) {
+                        logToDebug('❌ Ошибка window.close(): ' + e.message);
+                    }
+                }, 200);
+                
+                // Последняя попытка через history.back()
+                setTimeout(() => {
+                    logToDebug('Попытка закрытия методом 3: history.back()');
+                    try {
+                        window.history.back();
+                    } catch (e) {
+                        logToDebug('❌ Ошибка history.back(): ' + e.message);
+                    }
+                }, 500);
+                
+            }, 100);
         }
 
         if (tg) {
@@ -117,12 +153,15 @@
             tg.expand();
             logToDebug('✅ Telegram WebApp SDK загружен');
             
-            // Настройка основной кнопки
-            tg.MainButton.setText("✅ Подтвердить");
-            tg.MainButton.color = "#4CAF50";
-            tg.MainButton.show();
+            // НЕ показываем MainButton по умолчанию, чтобы избежать требования выбора товаров
+            // tg.MainButton.setText("✅ Подтвердить");
+            // tg.MainButton.color = "#4CAF50";
+            // tg.MainButton.show();
             
-            // Обработчики событий
+            // Убираем требование выбора товаров
+            tg.enableClosingConfirmation = false;
+            
+            // Обработчики событий (только если MainButton будет показан)
             tg.onEvent('mainButtonClicked', function() {
                 logToDebug('🔘 MainButton нажата');
                 sendData("main_button");
@@ -163,6 +202,10 @@
 
         document.getElementById('testSaveBtn').addEventListener('click', function() {
             sendData("test_save");
+        });
+
+        document.getElementById('forceCloseBtn').addEventListener('click', function() {
+            closeWebApp('🚪 WebApp закрыт');
         });
 
         function sendData(action) {
