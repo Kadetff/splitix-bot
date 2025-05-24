@@ -48,8 +48,8 @@ async def init_app():
     # Маршруты для чеков (числовые ID)
     bot_app.router.add_route('GET', '/{message_id:[0-9]+}{path_info:.*}', wsgi_handler)
     
-    # Корневая страница - ТОЛЬКО для корня, без catch-all
-    bot_app.router.add_route('GET', '/{path_info:}', wsgi_handler)
+    # Корневая страница и catch-all (ПОСЛЕДНИМ, чтобы не перехватывать специфичные роуты)
+    bot_app.router.add_route('GET', '/{path_info:.*}', wsgi_handler)
     
     logger.critical("!!!! ВСЕ РОУТЫ ЗАРЕГИСТРИРОВАНЫ !!!!")
     
