@@ -31,25 +31,33 @@ async def init_app():
     # Создаем WSGI handler для Flask
     wsgi_handler = WSGIHandler(flask_app)
     
+    # Обертка для логирования запросов
+    async def logged_wsgi_handler(request):
+        logger.critical(f"!!!! WSGI HANDLER ПОЛУЧИЛ ЗАПРОС: {request.method} {request.path_qs} !!!!")
+        logger.critical(f"!!!! MATCH INFO: {request.match_info} !!!!")
+        return await wsgi_handler(request)
+    
     # Добавляем специфичные маршруты для WebApp
     
     # Тестовая страница WebApp (ВЫСОКИЙ ПРИОРИТЕТ - ПЕРВАЯ!)
     logger.critical("!!!! РЕГИСТРИРУЮ РОУТЫ ДЛЯ /test_webapp !!!!")
-    bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', wsgi_handler)
-    bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', wsgi_handler)
+    bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', logged_wsgi_handler)
+    bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', logged_wsgi_handler)
     
     # API маршруты
-    bot_app.router.add_route('*', '/api/{path_info:.*}', wsgi_handler)
+    bot_app.router.add_route('*', '/api/{path_info:.*}', logged_wsgi_handler)
     
     # Утилитарные маршруты
-    bot_app.router.add_route('GET', '/health{path_info:.*}', wsgi_handler)
-    bot_app.router.add_route('*', '/maintenance/{path_info:.*}', wsgi_handler)
+    bot_app.router.add_route('GET', '/health{path_info:.*}', logged_wsgi_handler)
+    bot_app.router.add_route('*', '/maintenance/{path_info:.*}', logged_wsgi_handler)
     
     # Маршруты для чеков (числовые ID)
-    bot_app.router.add_route('GET', '/{message_id:[0-9]+}{path_info:.*}', wsgi_handler)
+    bot_app.router.add_route('GET', '/{message_id:[0-9]+}{path_info:.*}', logged_wsgi_handler)
     
-    # Корневая страница и catch-all (ПОСЛЕДНИМ, чтобы не перехватывать специфичные роуты)
-    bot_app.router.add_route('GET', '/{path_info:.*}', wsgi_handler)
+    # Корневая страница (ТОЛЬКО корень)
+    bot_app.router.add_route('GET', '/', logged_wsgi_handler)
+    
+    logger.critical("!!!! УБРАН УНИВЕРСАЛЬНЫЙ CATCH-ALL РОУТ - ТОЛЬКО КОНКРЕТНЫЕ РОУТЫ !!!!")
     
     logger.critical("!!!! ВСЕ РОУТЫ ЗАРЕГИСТРИРОВАНЫ !!!!")
     
