@@ -138,8 +138,10 @@ async def register_commands(bot: Bot):
         BotCommand(command="diagwebhook", description="🔬 Диагностика webhook"),
         BotCommand(command="safewebhook", description="🛡️ Осторожная установка"),
         BotCommand(command="testwebappdata", description="🧬 Точная диагностика web_app_data"),
-        BotCommand(command="setallwebhook", description="🌐 Webhook для всех типов обновлений"),
+        BotCommand(command="setallwebhook", description="🌐 Webhook для всех типов"),
         BotCommand(command="testwwwwebhook", description="🌐 Тест webhook с www"),
+        BotCommand(command="testcustomdomain", description="🎯 Настройка кастомного домена"),
+        BotCommand(command="testdomainurl", description="🔗 Тест конкретного домена"),
     ]
     await bot.set_my_commands(commands)
     logger.info("Команды бота зарегистрированы")

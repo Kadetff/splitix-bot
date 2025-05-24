@@ -692,4 +692,167 @@ async def cmd_set_all_webhook(message: Message):
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Ошибка при установке webhook с None: {error_msg}")
-        await message.answer(f"❌ **Ошибка**: `{error_msg}`", parse_mode="Markdown") 
+        await message.answer(f"❌ **Ошибка**: `{error_msg}`", parse_mode="Markdown")
+
+@router.message(Command("testcustomdomain"))
+async def cmd_test_custom_domain(message: Message):
+    """Тестирует webhook с кастомным доменом."""
+    try:
+        await message.answer("🌐 **Тестирование webhook с кастомным доменом...**")
+        
+        # Список возможных кастомных доменов
+        custom_domains = [
+            "splitix.app",
+            "splitix.ru", 
+            "splitix.com",
+            "split-bot.app",
+            "split-bot.ru",
+            "receiptbot.app",
+            "checkbot.ru"
+        ]
+        
+        # Получаем текущий webhook для извлечения пути
+        webhook_info = await message.bot.get_webhook_info()
+        current_path = f"/bot/{TELEGRAM_BOT_TOKEN}"
+        
+        if webhook_info.url:
+            # Извлекаем путь из текущего URL
+            import re
+            match = re.search(r'https://[^/]+(.+)', webhook_info.url)
+            if match:
+                current_path = match.group(1)
+        
+        response = "🎯 **Инструкция по настройке кастомного домена:**\n\n"
+        response += "**Шаг 1:** Купите домен (от 200₽/год):\n"
+        
+        for domain in custom_domains:
+            response += f"• `{domain}` - проверьте доступность\n"
+        
+        response += "\n**Шаг 2:** Настройте в Heroku:\n"
+        response += "```\n"
+        response += "heroku domains:add yourdomain.com -a splitix-bot-69642ff6c071\n"
+        response += "heroku certs:auto:enable -a splitix-bot-69642ff6c071\n"
+        response += "```\n\n"
+        
+        response += "**Шаг 3:** Настройте DNS:\n"
+        response += "• Тип: `CNAME`\n"
+        response += "• Имя: `@` (или `www`)\n"
+        response += "• Значение: `splitix-bot-69642ff6c071.herokuapp.com`\n\n"
+        
+        response += "**Шаг 4:** Протестируйте:\n"
+        response += f"• URL: `https://yourdomain.com{current_path}`\n\n"
+        
+        response += "**💡 Хотите протестировать с временным доменом?**\n"
+        response += "Напишите: `/testdomainurl https://yourdomain.com`"
+        
+        await message.answer(response, parse_mode="Markdown")
+        
+        # Также показываем текущие настройки
+        current_info = f"\n🔍 **Текущие настройки:**\n"
+        current_info += f"URL: `{webhook_info.url}`\n"
+        current_info += f"Путь: `{current_path}`\n"
+        current_info += f"Allowed updates: `{webhook_info.allowed_updates}`\n"
+        
+        await message.answer(current_info, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"Ошибка в тесте кастомного домена: {e}")
+        await message.answer(f"❌ Ошибка: {e}")
+
+@router.message(Command("testdomainurl"))
+async def cmd_test_domain_url(message: Message):
+    """Тестирует конкретный URL домена для webhook."""
+    try:
+        # Извлекаем URL из команды
+        args = message.text.split(maxsplit=1)
+        if len(args) < 2:
+            await message.answer(
+                "❓ **Использование:**\n"
+                "`/testdomainurl https://yourdomain.com`\n\n"
+                "Пример:\n"
+                "`/testdomainurl https://splitix.app`",
+                parse_mode="Markdown"
+            )
+            return
+        
+        domain_url = args[1].strip()
+        
+        # Проверяем формат URL
+        if not domain_url.startswith('http'):
+            domain_url = f"https://{domain_url}"
+        
+        # Формируем полный webhook URL
+        webhook_path = f"/bot/{TELEGRAM_BOT_TOKEN}"
+        full_webhook_url = f"{domain_url.rstrip('/')}{webhook_path}"
+        
+        await message.answer(f"🧪 **Тестирую домен:** `{domain_url}`")
+        logger.critical(f"!!!! ТЕСТ КАСТОМНОГО ДОМЕНА: {full_webhook_url} !!!!")
+        
+        try:
+            # Устанавливаем webhook с кастомным доменом
+            result = await message.bot.set_webhook(
+                url=full_webhook_url,
+                allowed_updates=None  # Все типы обновлений
+            )
+            
+            if result:
+                await message.answer("⏳ **Проверяю результат...**")
+                
+                # Ждем и проверяем
+                import asyncio
+                await asyncio.sleep(3)
+                
+                new_webhook = await message.bot.get_webhook_info()
+                logger.critical(f"!!!! РЕЗУЛЬТАТ КАСТОМНОГО ДОМЕНА: {new_webhook} !!!!")
+                
+                if new_webhook.url == full_webhook_url:
+                    response = "🎉 **УСПЕХ! Кастомный домен работает!**\n\n"
+                    response += f"📡 **URL:** `{new_webhook.url}`\n"
+                    
+                    if new_webhook.allowed_updates is None:
+                        response += "🎯 **Allowed updates:** `None` (ВСЕ типы включены!)\n\n"
+                        response += "✅ **web_app_data должен работать!**"
+                    elif 'web_app_data' in new_webhook.allowed_updates:
+                        response += "🎯 **web_app_data:** ✅ Включен!\n\n"
+                        response += "✅ **WebApp должен работать!**"
+                    else:
+                        response += f"⚠️ **Allowed updates:** `{new_webhook.allowed_updates}`\n\n"
+                        response += "❌ web_app_data все еще отсутствует"
+                    
+                    response += "\n\n🧪 **Протестируйте WebApp:** `/testwebapp`"
+                    
+                    await message.answer(response, parse_mode="Markdown")
+                else:
+                    await message.answer(
+                        f"❌ **Webhook не установлен**\n"
+                        f"Ожидался: `{full_webhook_url}`\n"
+                        f"Получен: `{new_webhook.url}`",
+                        parse_mode="Markdown"
+                    )
+            else:
+                await message.answer("❌ **Ошибка установки webhook**")
+                
+        except Exception as webhook_error:
+            error_msg = str(webhook_error)
+            logger.error(f"Ошибка webhook с кастомным доменом: {error_msg}")
+            
+            if "failed to resolve host" in error_msg.lower():
+                await message.answer(
+                    "❌ **DNS не настроен**\n\n"
+                    "🔧 **Настройте DNS записи:**\n"
+                    f"• Тип: CNAME\n"
+                    f"• Имя: @ (или www)\n"
+                    f"• Значение: splitix-bot-69642ff6c071.herokuapp.com\n\n"
+                    f"⏰ Подождите 5-15 минут после настройки DNS"
+                )
+            elif "flood control" in error_msg.lower():
+                await message.answer(
+                    "🚫 **Flood control активен**\n\n"
+                    "⏰ Подождите 10-15 минут перед следующей попыткой"
+                )
+            else:
+                await message.answer(f"❌ **Ошибка:** `{error_msg}`", parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"Ошибка в тесте URL домена: {e}")
+        await message.answer(f"❌ Ошибка: {e}") 
