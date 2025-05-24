@@ -93,4 +93,27 @@ async def cmd_test_webapp(message: Message):
     await message.answer(
         "Нажмите кнопку ниже, чтобы открыть тестовое веб-приложение для отладки.",
         reply_markup=keyboard.as_markup()
-    ) 
+    )
+
+@router.message(Command("webhook"))
+async def cmd_webhook_info(message: Message):
+    """Проверяет статус webhook."""
+    try:
+        webhook_info = await message.bot.get_webhook_info()
+        logger.critical(f"!!!! WEBHOOK INFO !!!! {webhook_info}")
+        
+        status = "✅ Активен" if webhook_info.url else "❌ Не настроен"
+        
+        response = f"🔗 **Статус Webhook**: {status}\n"
+        response += f"📡 **URL**: `{webhook_info.url or 'Не установлен'}`\n"
+        response += f"🔢 **Pending updates**: {webhook_info.pending_update_count}\n"
+        response += f"📅 **Последняя ошибка**: {webhook_info.last_error_date or 'Нет'}\n"
+        
+        if webhook_info.last_error_message:
+            response += f"⚠️ **Сообщение об ошибке**: {webhook_info.last_error_message}\n"
+            
+        await message.answer(response, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при получении информации о webhook: {e}")
+        await message.answer(f"❌ Ошибка при получении информации о webhook: {e}") 
