@@ -33,7 +33,10 @@ async def init_app():
     
     # Добавляем специфичные маршруты для WebApp (ИЗБЕГАЕМ универсальных catch-all)
     
-    # Тестовая страница WebApp  
+    # Тестовая страница WebApp (с поддержкой слеша и без)
+    logger.critical("!!!! РЕГИСТРИРУЮ РОУТЫ ДЛЯ /test_webapp !!!!")
+    bot_app.router.add_route('GET', '/test_webapp', wsgi_handler)
+    bot_app.router.add_route('GET', '/test_webapp/', wsgi_handler)
     bot_app.router.add_route('GET', '/test_webapp{path_info:.*}', wsgi_handler)
     
     # API маршруты
