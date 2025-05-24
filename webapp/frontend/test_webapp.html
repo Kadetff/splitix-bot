@@ -84,36 +84,44 @@
 
         // Обработчик кнопки
         document.getElementById('sendBtn').addEventListener('click', function() {
-            log('🔘 Кнопка нажата');
-            log(`🔍 tg объект: ${typeof tg}`);
-            log(`🔍 tg.sendData: ${typeof tg.sendData}`);
-            log(`🔍 query_id: ${tg.initDataUnsafe?.query_id || 'отсутствует'}`);
-            log(`🔍 user_id: ${tg.initDataUnsafe?.user?.id || 'отсутствует'}`);
+            const message = "Привет";
+            log(`📤 Отправляю сообщение: "${message}"`);
             
             try {
-                const data = "Привет от " + new Date().toISOString();
-                log(`📤 Отправляем: "${data}"`);
-                
-                if (tg && typeof tg.sendData === 'function') {
-                    log('🚀 Вызываем tg.sendData()...');
-                    tg.sendData(data);
-                    log('✅ tg.sendData() выполнена без ошибок');
-                    
-                    // Не закрываем сразу, даем время для отправки
-                    setTimeout(() => {
-                        log('⏰ Через 2 секунды - проверяем статус...');
-                        log('🚪 Закрываем WebApp...');
-                        tg.close();
-                    }, 2000);
-                    
+                if (tg && tg.sendData) {
+                    // Основной способ - через sendData
+                    log('🎯 Попытка через tg.sendData()...');
+                    tg.sendData(message);
+                    log('✅ tg.sendData() выполнен');
                 } else {
-                    log('❌ tg.sendData недоступна');
-                    log(`❌ Причина: tg=${typeof tg}, sendData=${typeof tg?.sendData}`);
+                    throw new Error('tg.sendData недоступен');
                 }
-                
             } catch (error) {
-                log('❌ Ошибка в try-catch: ' + error.message);
-                log('❌ Stack: ' + error.stack);
+                log(`❌ Ошибка tg.sendData: ${error.message}`);
+                
+                // Альтернативный способ - через URL
+                log('🔄 Пробую альтернативный способ через URL...');
+                
+                try {
+                    const botUsername = 'Splitix_bot'; // Замените на имя вашего бота
+                    const data = JSON.stringify({
+                        message: message,
+                        timestamp: Date.now(),
+                        from: 'test_webapp'
+                    });
+                    
+                    const encodedData = encodeURIComponent(data);
+                    const telegramUrl = `https://t.me/${botUsername}?start=webapp_data_${encodedData}`;
+                    
+                    log(`🌐 Перенаправляю на: ${telegramUrl}`);
+                    window.location.href = telegramUrl;
+                } catch (urlError) {
+                    log(`❌ Ошибка URL способа: ${urlError.message}`);
+                    
+                    // Последний способ - через alert
+                    alert(`Данные для отправки: ${message}\n\nSkopируйте и отправьте боту вручную.`);
+                    log('📋 Показан alert с данными для ручной отправки');
+                }
             }
         });
     </script>

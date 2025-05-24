@@ -28,21 +28,53 @@ HELP_TEXT = (
 async def cmd_start(message: Message):
     """Обработчик команды /start с поддержкой параметра webapp"""
     args = message.text.split(maxsplit=1)
-    if len(args) > 1 and args[1].startswith("webapp_"):
-        message_id = args[1].replace("webapp_", "")
-        webapp_url = f"{WEBAPP_URL}/{message_id}"
-        keyboard = InlineKeyboardBuilder()
-        keyboard.row(
-            InlineKeyboardButton(
-                text="🌐 Открыть мини-приложение",
-                web_app=WebAppInfo(url=webapp_url)
+    if len(args) > 1:
+        param = args[1]
+        
+        # Обработка WebApp данных через URL параметр
+        if param.startswith("webapp_data_"):
+            try:
+                encoded_data = param.replace("webapp_data_", "")
+                import urllib.parse
+                decoded_data = urllib.parse.unquote(encoded_data)
+                
+                logger.critical(f"!!!! АЛЬТЕРНАТИВНЫЙ СПОСОБ: Получены данные через URL !!!! {decoded_data}")
+                
+                # Парсим JSON данные
+                import json
+                data = json.loads(decoded_data)
+                
+                response = "🎉 **УСПЕХ! Данные получены альтернативным способом!**\n\n"
+                response += f"📤 **Сообщение**: `{data.get('message', 'Нет сообщения')}`\n"
+                response += f"⏰ **Время**: `{data.get('timestamp', 'Не указано')}`\n"
+                response += f"🔄 **Источник**: `{data.get('from', 'Неизвестно')}`\n\n"
+                response += "✅ Альтернативный способ передачи данных работает!"
+                
+                await message.answer(response, parse_mode="Markdown")
+                return
+                
+            except Exception as e:
+                logger.error(f"Ошибка при обработке webapp_data_: {e}")
+                await message.answer(f"❌ Ошибка при обработке данных: {e}")
+                return
+        
+        # Обработка старого формата webapp_
+        elif param.startswith("webapp_"):
+            message_id = param.replace("webapp_", "")
+            webapp_url = f"{WEBAPP_URL}/{message_id}"
+            keyboard = InlineKeyboardBuilder()
+            keyboard.row(
+                InlineKeyboardButton(
+                    text="🌐 Открыть мини-приложение",
+                    web_app=WebAppInfo(url=webapp_url)
+                )
             )
-        )
-        await message.answer(
-            "Нажмите кнопку ниже, чтобы открыть мини-приложение:",
-            reply_markup=keyboard.as_markup()
-        )
-        return
+            await message.answer(
+                "Нажмите кнопку ниже, чтобы открыть мини-приложение:",
+                reply_markup=keyboard.as_markup()
+            )
+            return
+    
     await message.answer(
         "👋 Привет! Я бот для разделения чеков.\n\n"
         "📸 Отправь мне фото чека, и я помогу разделить его между участниками.\n\n"
@@ -482,6 +514,137 @@ async def cmd_test_web_app_data(message: Message):
     except Exception as e:
         logger.error(f"Ошибка в диагностике: {e}")
         await message.answer(f"❌ Ошибка в диагностике: {e}")
+
+@router.message(Command("testwwwwebhook"))
+async def cmd_test_www_webhook(message: Message):
+    """Тестирует webhook с www. префиксом для решения проблем Heroku."""
+    try:
+        # Получаем текущий webhook
+        webhook_info = await message.bot.get_webhook_info()
+        current_url = webhook_info.url
+        
+        await message.answer("🌐 **Тестирую webhook с www. префиксом...**")
+        
+        # Создаем версии URL с www
+        possible_urls = []
+        
+        if current_url:
+            # Парсим текущий URL
+            import re
+            
+            # Извлекаем домен из URL
+            match = re.search(r'https://([^/]+)/', current_url)
+            if match:
+                domain = match.group(1)
+                path = current_url.replace(f'https://{domain}', '')
+                
+                # Создаем варианты с www
+                if not domain.startswith('www.'):
+                    www_url = f"https://www.{domain}{path}"
+                    possible_urls.append(www_url)
+                
+                # Также пробуем без субдомена, если есть
+                if '.' in domain:
+                    parts = domain.split('.')
+                    if len(parts) >= 3:  # например: splitix-bot-69642ff6c071.herokuapp.com
+                        main_domain = '.'.join(parts[-2:])  # herokuapp.com
+                        app_name = parts[0]  # splitix-bot-69642ff6c071
+                        clean_url = f"https://www.{app_name}.{main_domain}{path}"
+                        if clean_url not in possible_urls:
+                            possible_urls.append(clean_url)
+        
+        # Также добавляем стандартные варианты
+        standard_urls = [
+            f"https://www.splitix-bot-69642ff6c071.herokuapp.com/bot/{TELEGRAM_BOT_TOKEN}",
+            f"https://www.splitix-bot.herokuapp.com/bot/{TELEGRAM_BOT_TOKEN}"
+        ]
+        
+        for url in standard_urls:
+            if url not in possible_urls:
+                possible_urls.append(url)
+        
+        logger.critical(f"!!!! ТЕСТИРУЮ URLS С WWW: {possible_urls} !!!!")
+        
+        response = f"🔍 **Текущий URL:** `{current_url}`\n\n"
+        response += f"🧪 **Будем тестировать {len(possible_urls)} вариантов с www:**\n"
+        
+        for i, url in enumerate(possible_urls, 1):
+            response += f"{i}. `{url}`\n"
+        
+        await message.answer(response, parse_mode="Markdown")
+        
+        # Тестируем каждый URL
+        successful_urls = []
+        
+        for i, test_url in enumerate(possible_urls, 1):
+            try:
+                await message.answer(f"🧪 **Тест {i}/{len(possible_urls)}**: {test_url[:50]}...")
+                
+                logger.critical(f"!!!! ТЕСТ {i}: УСТАНОВКА {test_url} !!!!")
+                
+                # Устанавливаем webhook
+                result = await message.bot.set_webhook(
+                    url=test_url,
+                    allowed_updates=None  # Все типы
+                )
+                
+                if result:
+                    # Проверяем результат
+                    import asyncio
+                    await asyncio.sleep(2)
+                    
+                    new_webhook = await message.bot.get_webhook_info()
+                    
+                    if new_webhook.url == test_url:
+                        logger.critical(f"!!!! УСПЕХ С URL {i}: {test_url} !!!!")
+                        successful_urls.append((i, test_url, new_webhook))
+                        
+                        status = "✅ **УСПЕХ!**"
+                        if new_webhook.allowed_updates is None:
+                            status += " (получаем ВСЕ типы обновлений)"
+                        else:
+                            if 'web_app_data' in new_webhook.allowed_updates:
+                                status += " (web_app_data включен)"
+                            else:
+                                status += " (web_app_data отсутствует)"
+                        
+                        await message.answer(f"{status}\nURL {i}: работает!")
+                        
+                        # Если нашли рабочий URL с web_app_data - останавливаемся
+                        if (new_webhook.allowed_updates is None or 
+                            'web_app_data' in (new_webhook.allowed_updates or [])):
+                            break
+                    else:
+                        await message.answer(f"❌ URL {i}: установлен другой URL")
+                else:
+                    await message.answer(f"❌ URL {i}: ошибка установки")
+                    
+            except Exception as url_error:
+                logger.error(f"Ошибка с URL {i} ({test_url}): {url_error}")
+                await message.answer(f"❌ URL {i}: {str(url_error)[:100]}...")
+        
+        # Итоговый отчет
+        if successful_urls:
+            final_response = f"🎉 **НАЙДЕНО {len(successful_urls)} рабочих URL!**\n\n"
+            
+            for i, url, webhook in successful_urls:
+                final_response += f"✅ **URL {i}**: работает\n"
+                final_response += f"🔗 `{url}`\n"
+                
+                if webhook.allowed_updates is None:
+                    final_response += "🎯 **Получает ВСЕ типы обновлений (включая web_app_data)!**\n\n"
+                elif 'web_app_data' in webhook.allowed_updates:
+                    final_response += "🎯 **web_app_data включен!**\n\n"
+                else:
+                    final_response += f"⚠️ web_app_data отсутствует: `{webhook.allowed_updates}`\n\n"
+            
+            await message.answer(final_response, parse_mode="Markdown")
+        else:
+            await message.answer("❌ **Ни один URL с www. не сработал**\n\nВозможно, проблема не в домене.")
+            
+    except Exception as e:
+        logger.error(f"Ошибка в тесте www webhook: {e}")
+        await message.answer(f"❌ Ошибка: {e}")
 
 @router.message(Command("setallwebhook"))
 async def cmd_set_all_webhook(message: Message):
