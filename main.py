@@ -32,8 +32,8 @@ photo.message_states = message_states
 # webapp.message_states = message_states # Временно комментируем для отладки
 
 # Конфигурация для Heroku
-# Определяем имя приложения из переменных или используем для splitix-bot
-APP_NAME = os.getenv('HEROKU_APP_NAME') or os.getenv('APP_NAME') or 'splitix-bot'
+# Определяем имя приложения из переменных или используем полное имя
+APP_NAME = os.getenv('HEROKU_APP_NAME') or os.getenv('APP_NAME') or 'splitix-bot-69642ff6c071'
 PORT = os.getenv('PORT')
 
 # Если есть PORT (означает что мы на Heroku), настраиваем webhook

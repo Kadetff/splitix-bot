@@ -124,11 +124,18 @@ async def cmd_webhook_info(message: Message):
 async def cmd_fix_webhook(message: Message):
     """Принудительно обновляет настройки webhook с поддержкой web_app_data."""
     try:
-        # Определяем webhook URL (такой же как в main.py)
-        APP_NAME = os.getenv('HEROKU_APP_NAME') or os.getenv('APP_NAME') or 'splitix-bot'
-        WEBHOOK_HOST = f"https://{APP_NAME}.herokuapp.com"
-        WEBHOOK_PATH = f"/bot/{TELEGRAM_BOT_TOKEN}"
-        WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+        # Сначала получаем текущий URL webhook чтобы использовать точно такой же
+        current_webhook = await message.bot.get_webhook_info()
+        if current_webhook.url:
+            WEBHOOK_URL = current_webhook.url
+            logger.critical(f"!!!! ИСПОЛЬЗУЕМ ТЕКУЩИЙ WEBHOOK URL: {WEBHOOK_URL} !!!!")
+        else:
+            # Fallback: определяем webhook URL как в main.py
+            APP_NAME = os.getenv('HEROKU_APP_NAME') or os.getenv('APP_NAME') or 'splitix-bot-69642ff6c071'
+            WEBHOOK_HOST = f"https://{APP_NAME}.herokuapp.com"
+            WEBHOOK_PATH = f"/bot/{TELEGRAM_BOT_TOKEN}"
+            WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+            logger.critical(f"!!!! WEBHOOK НЕ УСТАНОВЛЕН, СОЗДАЕМ НОВЫЙ: {WEBHOOK_URL} !!!!")
         
         await message.answer("🔧 Обновляю настройки webhook...")
         logger.critical(f"!!!! ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ WEBHOOK: {WEBHOOK_URL} !!!!")
