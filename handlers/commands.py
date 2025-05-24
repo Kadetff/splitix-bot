@@ -166,4 +166,121 @@ async def cmd_fix_webhook(message: Message):
         
     except Exception as e:
         logger.error(f"Ошибка при обновлении webhook: {e}")
-        await message.answer(f"❌ Ошибка при обновлении webhook: {e}") 
+        await message.answer(f"❌ Ошибка при обновлении webhook: {e}")
+
+@router.message(Command("resetwebhook"))
+async def cmd_reset_webhook(message: Message):
+    """Полный сброс webhook: удаление + повторная установка с web_app_data."""
+    try:
+        await message.answer("🔥 Выполняю полный сброс webhook...")
+        
+        # Шаг 1: Удаляем существующий webhook
+        logger.critical("!!!! ШАГ 1: УДАЛЕНИЕ WEBHOOK !!!!")
+        await message.bot.delete_webhook()
+        await message.answer("✅ Webhook удален")
+        
+        # Шаг 2: Ждем немного
+        import asyncio
+        await asyncio.sleep(1)
+        
+        # Шаг 3: Получаем правильный URL
+        # Попробуем разные варианты URL
+        possible_urls = [
+            "https://splitix-bot-69642ff6c071.herokuapp.com",
+            "https://splitix-bot.herokuapp.com"
+        ]
+        
+        for base_url in possible_urls:
+            try:
+                WEBHOOK_URL = f"{base_url}/bot/{TELEGRAM_BOT_TOKEN}"
+                logger.critical(f"!!!! ПРОБУЕМ УСТАНОВИТЬ WEBHOOK: {WEBHOOK_URL} !!!!")
+                
+                # Устанавливаем webhook с web_app_data
+                result = await message.bot.set_webhook(
+                    url=WEBHOOK_URL,
+                    allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result", "web_app_data"]
+                )
+                
+                logger.critical(f"!!!! РЕЗУЛЬТАТ set_webhook: {result} !!!!")
+                
+                # Проверяем результат
+                webhook_info = await message.bot.get_webhook_info()
+                logger.critical(f"!!!! ПРОВЕРКА ПОСЛЕ УСТАНОВКИ: {webhook_info} !!!!")
+                
+                if webhook_info.url == WEBHOOK_URL:
+                    # Успешно установлен на этот URL
+                    response = f"✅ **Webhook переустановлен!**\n\n"
+                    response += f"📡 **URL**: `{webhook_info.url}`\n"
+                    response += f"🔧 **Allowed updates**: {webhook_info.allowed_updates}\n"
+                    
+                    if 'web_app_data' in webhook_info.allowed_updates:
+                        response += "\n🎉 **УСПЕХ! web_app_data включен!**"
+                    else:
+                        response += "\n❌ **web_app_data все еще отсутствует...**"
+                        
+                    await message.answer(response, parse_mode="Markdown")
+                    return
+                    
+            except Exception as url_error:
+                logger.error(f"Ошибка с URL {base_url}: {url_error}")
+                continue
+        
+        # Если ни один URL не сработал
+        await message.answer("❌ Не удалось установить webhook ни на один из URL")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при сбросе webhook: {e}")
+        await message.answer(f"❌ Ошибка при сбросе webhook: {e}")
+
+@router.message(Command("diagwebhook"))
+async def cmd_diag_webhook(message: Message):
+    """Детальная диагностика webhook и попытка понять почему web_app_data не работает."""
+    try:
+        await message.answer("🔍 Запускаю детальную диагностику...")
+        
+        # Получаем информацию о боте
+        me = await message.bot.get_me()
+        logger.critical(f"!!!! BOT INFO: {me} !!!!")
+        
+        # Проверяем текущий webhook
+        webhook_info = await message.bot.get_webhook_info()
+        logger.critical(f"!!!! CURRENT WEBHOOK: {webhook_info} !!!!")
+        
+        # Пробуем установить webhook ТОЛЬКО с web_app_data для теста
+        test_url = webhook_info.url if webhook_info.url else f"https://splitix-bot-69642ff6c071.herokuapp.com/bot/{TELEGRAM_BOT_TOKEN}"
+        
+        logger.critical(f"!!!! ТЕСТ: УСТАНОВКА WEBHOOK ТОЛЬКО С web_app_data !!!!")
+        try:
+            result = await message.bot.set_webhook(
+                url=test_url,
+                allowed_updates=["web_app_data"]  # ТОЛЬКО web_app_data
+            )
+            logger.critical(f"!!!! РЕЗУЛЬТАТ ТЕСТА: {result} !!!!")
+            
+            # Проверяем что получилось
+            test_webhook = await message.bot.get_webhook_info()
+            logger.critical(f"!!!! ТЕСТОВЫЙ WEBHOOK: {test_webhook} !!!!")
+            
+            response = "🧪 **Тест с only web_app_data:**\n"
+            response += f"Результат: `{result}`\n"
+            response += f"Allowed updates: `{test_webhook.allowed_updates}`\n\n"
+            
+            # Возвращаем обратно полный набор
+            await message.bot.set_webhook(
+                url=test_url,
+                allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result", "web_app_data"]
+            )
+            
+            final_webhook = await message.bot.get_webhook_info()
+            response += f"🔄 **После возврата полного набора:**\n"
+            response += f"Allowed updates: `{final_webhook.allowed_updates}`\n"
+            
+            await message.answer(response, parse_mode="Markdown")
+            
+        except Exception as test_error:
+            logger.error(f"Ошибка в тесте: {test_error}")
+            await message.answer(f"❌ Ошибка в тесте: {test_error}")
+        
+    except Exception as e:
+        logger.error(f"Ошибка в диагностике: {e}")
+        await message.answer(f"❌ Ошибка в диагностике: {e}") 

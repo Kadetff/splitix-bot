@@ -133,7 +133,9 @@ async def register_commands(bot: Bot):
         BotCommand(command="split", description="📇 Разделить чек (в группе)"),
         BotCommand(command="testwebapp", description="🧪 Тестовый WebApp"),
         BotCommand(command="webhook", description="🔍 Статус webhook"),
-        BotCommand(command="fixwebhook", description="🔧 Исправить webhook")
+        BotCommand(command="fixwebhook", description="🔧 Исправить webhook"),
+        BotCommand(command="resetwebhook", description="🔥 Полный сброс webhook"),
+        BotCommand(command="diagwebhook", description="🔬 Диагностика webhook")
     ]
     await bot.set_my_commands(commands)
     logger.info("Команды бота зарегистрированы")
