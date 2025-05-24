@@ -21,9 +21,19 @@ async def handle_webapp_data_specific_filter(message: Message):
         logger.critical(f"!!!! DEBUG_WEBAPP_ROUTER: WebApp Data Received: {message.web_app_data.data} !!!!")
         logger.critical(f"Full message object: {message.model_dump_json(indent=2)}")
         
+        raw_data = message.web_app_data.data
+        logger.critical(f"!!!! RAW DATA: '{raw_data}' !!!!")
+        
+        # Простая проверка: если данные = "Привет", это наш простой тест
+        if raw_data.strip() == "Привет":
+            logger.critical(f"!!!! УСПЕХ! Получили простое сообщение: '{raw_data}' !!!!")
+            await message.answer(f"🎉 УСПЕХ! Бот получил сообщение от WebApp: '{raw_data}'")
+            return
+        
+        # Иначе пытаемся парсить как JSON (для старых тестов)
         query_id = None
         try:
-            data = json.loads(message.web_app_data.data)
+            data = json.loads(raw_data)
             query_id = data.get('query_id') 
             logger.info(f"Parsed web_app_data: {data}")
 
@@ -44,8 +54,8 @@ async def handle_webapp_data_specific_filter(message: Message):
                 await message.answer("DEBUG: Данные WebApp получены (F.web_app_data, query_id отсутствует).")
                 
         except json.JSONDecodeError:
-            logger.error("!!!! DEBUG_WEBAPP_ROUTER: JSONDecodeError parsing message.web_app_data.data !!!!")
-            await message.answer("DEBUG: Ошибка: данные от WebApp не в формате JSON (F.web_app_data).")
+            logger.error(f"!!!! DEBUG_WEBAPP_ROUTER: JSONDecodeError parsing message.web_app_data.data: '{raw_data}' !!!!")
+            await message.answer(f"DEBUG: Получены данные от WebApp (не JSON): '{raw_data}'")
         except Exception as e:
             logger.error(f"!!!! DEBUG_WEBAPP_ROUTER: Unexpected error processing web_app_data: {e} !!!!", exc_info=True)
             await message.answer("DEBUG: Неожиданная ошибка при парсинге/обработке данных от WebApp (F.web_app_data).")

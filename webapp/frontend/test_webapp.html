@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Тестовый WebApp</title>
+    <title>Простой тест WebApp</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { 
@@ -17,248 +17,97 @@
         .content {
             max-width: 400px;
             margin: 0 auto;
-            padding: 20px 0;
+            padding: 40px 0;
         }
         button { 
-            font-size: 16px; 
-            padding: 12px 24px; 
+            font-size: 18px; 
+            padding: 15px 30px; 
             cursor: pointer; 
             background: var(--tg-theme-button-color, #0088cc);
             color: var(--tg-theme-button-text-color, #fff);
             border: none;
-            border-radius: 8px;
-            margin: 10px;
+            border-radius: 12px;
+            margin: 20px;
             width: 100%;
-            max-width: 280px;
+            max-width: 300px;
         }
         button:hover {
             opacity: 0.8;
         }
-        #status {
-            margin: 20px 0;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        .status-loading {
-            background: var(--tg-theme-hint-color, #999);
-            color: var(--tg-theme-bg-color, #fff);
-        }
-        .status-success {
-            background: #4CAF50;
-            color: white;
-        }
-        .status-error {
-            background: #f44336;
-            color: white;
-        }
-        #debug { 
+        #log { 
             margin-top: 20px; 
-            padding: 10px; 
-            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0); 
-            border: 1px solid var(--tg-theme-hint-color, #ccc); 
+            padding: 15px; 
+            background-color: var(--tg-theme-secondary-bg-color, #f8f8f8); 
+            border: 1px solid var(--tg-theme-hint-color, #ddd); 
             text-align: left; 
             white-space: pre-wrap; 
-            font-size: 12px;
+            font-size: 13px;
             border-radius: 8px;
-            max-height: 200px;
+            max-height: 300px;
             overflow-y: auto;
         }
     </style>
 </head>
 <body>
     <div class="content">
-        <h1>🧪 Тест WebApp</h1>
-        <p>Проверяем передачу данных боту</p>
+        <h1>🚀 Простой тест WebApp</h1>
+        <p>Нажмите кнопку, чтобы отправить "Привет" боту</p>
         
-        <div id="status" class="status-loading">Инициализация...</div>
+        <button id="sendBtn">📤 Отправить "Привет"</button>
         
-        <button id="sendTestDataBtn">📤 Отправить тестовое сообщение</button>
-        <button id="loadTestDataBtn">📊 Загрузить тестовые данные</button>
-        <button id="checkWebAppBtn">🔍 Проверить Telegram WebApp</button>
-        <button id="testSaveBtn">💾 Проверить сохранение</button>
-        <button id="forceCloseBtn" style="background: #f44336;">🚪 Принудительно закрыть</button>
-        
-        <div id="debug">Логи загрузки...<br></div>
+        <div id="log">Загрузка...<br></div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
-        const debugLog = document.getElementById('debug');
-        const statusDiv = document.getElementById('status');
+        const logDiv = document.getElementById('log');
 
-        function logToDebug(message) {
+        function log(message) {
             console.log(message);
-            debugLog.innerHTML += new Date().toISOString().slice(11, 19) + ': ' + message + '\n';
-            debugLog.scrollTop = debugLog.scrollHeight;
+            const timestamp = new Date().toISOString().slice(11, 19);
+            logDiv.innerHTML += `${timestamp}: ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
         }
 
-        function updateStatus(message, type = 'loading') {
-            statusDiv.textContent = message;
-            statusDiv.className = 'status-' + type;
-        }
-
-        function closeWebApp(message = 'Данные отправлены боту') {
-            logToDebug('Закрытие WebApp...');
-            updateStatus(message, 'success');
-            
-            // Принудительно убираем любые ограничения на закрытие
-            if (tg) {
-                try {
-                    tg.enableClosingConfirmation = false;
-                    tg.MainButton.hide();
-                    logToDebug('MainButton скрыта, ограничения убраны');
-                } catch (e) {
-                    logToDebug('Ошибка при убирании ограничений: ' + e.message);
-                }
-            }
-            
-            // Немедленное закрытие без задержки
-            setTimeout(() => {
-                logToDebug('Попытка закрытия методом 1: tg.close()');
-                if (tg && typeof tg.close === 'function') {
-                    try {
-                        tg.close();
-                        logToDebug('✅ tg.close() выполнена');
-                    } catch (e) {
-                        logToDebug('❌ Ошибка tg.close(): ' + e.message);
-                    }
-                }
-                
-                // Дополнительные методы закрытия
-                setTimeout(() => {
-                    logToDebug('Попытка закрытия методом 2: window.close()');
-                    try {
-                        window.close();
-                    } catch (e) {
-                        logToDebug('❌ Ошибка window.close(): ' + e.message);
-                    }
-                }, 200);
-                
-                // Последняя попытка через history.back()
-                setTimeout(() => {
-                    logToDebug('Попытка закрытия методом 3: history.back()');
-                    try {
-                        window.history.back();
-                    } catch (e) {
-                        logToDebug('❌ Ошибка history.back(): ' + e.message);
-                    }
-                }, 500);
-                
-            }, 100);
-        }
-
+        // Инициализация
         if (tg) {
             tg.ready();
             tg.expand();
-            logToDebug('✅ Telegram WebApp SDK загружен');
-            
-            // НЕ показываем MainButton по умолчанию, чтобы избежать требования выбора товаров
-            // tg.MainButton.setText("✅ Подтвердить");
-            // tg.MainButton.color = "#4CAF50";
-            // tg.MainButton.show();
-            
-            // Убираем требование выбора товаров
             tg.enableClosingConfirmation = false;
             
-            // Обработчики событий (только если MainButton будет показан)
-            tg.onEvent('mainButtonClicked', function() {
-                logToDebug('🔘 MainButton нажата');
-                sendData("main_button");
-            });
-
-            // Проверяем доступность данных
-            const hasInitData = !!tg.initData;
-            const hasQueryId = !!(tg.initDataUnsafe && tg.initDataUnsafe.query_id);
-            const hasUserId = !!(tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id);
-
-            if (hasInitData && hasQueryId) {
-                updateStatus('✅ WebApp готов к работе', 'success');
-                logToDebug('✅ initData и query_id присутствуют');
-            } else {
-                updateStatus('⚠️ Неполные данные WebApp', 'error');
-                logToDebug('⚠️ initData: ' + hasInitData + ', query_id: ' + hasQueryId);
-            }
-
-            logToDebug('User ID: ' + (hasUserId ? tg.initDataUnsafe.user.id : 'отсутствует'));
-
+            log('✅ Telegram WebApp инициализирован');
+            log(`initData длина: ${tg.initData ? tg.initData.length : 0}`);
+            log(`query_id: ${tg.initDataUnsafe?.query_id ? 'есть' : 'нет'}`);
         } else {
-            updateStatus('❌ WebApp SDK недоступен', 'error');
-            logToDebug('❌ Telegram WebApp SDK не найден');
+            log('❌ Telegram WebApp не найден');
         }
 
-        // Обработчики кнопок
-        document.getElementById('sendTestDataBtn').addEventListener('click', function() {
-            sendData("test_message");
-        });
-
-        document.getElementById('loadTestDataBtn').addEventListener('click', function() {
-            sendData("load_test_data");
-        });
-
-        document.getElementById('checkWebAppBtn').addEventListener('click', function() {
-            sendData("check_webapp");
-        });
-
-        document.getElementById('testSaveBtn').addEventListener('click', function() {
-            sendData("test_save");
-        });
-
-        document.getElementById('forceCloseBtn').addEventListener('click', function() {
-            closeWebApp('🚪 WebApp закрыт');
-        });
-
-        function sendData(action) {
-            logToDebug('=== Отправка данных: ' + action + ' ===');
-            updateStatus('📤 Отправка данных...', 'loading');
+        // Обработчик кнопки
+        document.getElementById('sendBtn').addEventListener('click', function() {
+            log('🔘 Кнопка нажата');
             
-            if (!tg || typeof tg.sendData !== 'function') {
-                logToDebug('❌ tg.sendData недоступен');
-                updateStatus('❌ WebApp API недоступен', 'error');
-                return;
-            }
-
-            const queryId = tg.initDataUnsafe && tg.initDataUnsafe.query_id;
-            const userId = tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id;
-
-            const dataToSend = {
-                action: action,
-                query_id: queryId,
-                user_id: userId,
-                timestamp: new Date().toISOString(),
-                message: getMessageForAction(action),
-                webapp_data: {
-                    has_init_data: !!tg.initData,
-                    has_query_id: !!queryId,
-                    has_user_id: !!userId,
-                    platform: tg.platform || 'unknown'
-                }
-            };
-
             try {
-                logToDebug('📤 Вызов tg.sendData()');
-                tg.sendData(JSON.stringify(dataToSend));
-                logToDebug('✅ Данные отправлены: ' + JSON.stringify(dataToSend, null, 2));
+                const data = "Привет";
+                log(`📤 Отправляем: "${data}"`);
                 
-                // Автоматическое закрытие WebApp
-                closeWebApp('✅ Сообщение отправлено боту');
+                if (tg && typeof tg.sendData === 'function') {
+                    tg.sendData(data);
+                    log('✅ tg.sendData() выполнена успешно');
+                    
+                    // Закрываем WebApp через 1 секунду
+                    setTimeout(() => {
+                        log('🚪 Закрываем WebApp...');
+                        tg.close();
+                    }, 1000);
+                    
+                } else {
+                    log('❌ tg.sendData недоступна');
+                }
                 
             } catch (error) {
-                logToDebug('❌ Ошибка отправки: ' + error.message);
-                updateStatus('❌ Ошибка отправки', 'error');
+                log('❌ Ошибка: ' + error.message);
             }
-        }
-
-        function getMessageForAction(action) {
-            const messages = {
-                test_message: "Тестовое сообщение от WebApp",
-                load_test_data: "Запрос загрузки тестовых данных",
-                check_webapp: "Проверка работы Telegram WebApp API",
-                test_save: "Тест сохранения данных",
-                main_button: "Данные отправлены через MainButton"
-            };
-            return messages[action] || "Неизвестное действие: " + action;
-        }
+        });
     </script>
 </body>
 </html> 
