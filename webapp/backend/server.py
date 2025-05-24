@@ -98,6 +98,7 @@ def index():
     return send_file(index_path)
 
 @app.route('/test_webapp')
+@app.route('/test_webapp/')
 def test_webapp_page():
     """Отдаем тестовый WebApp"""
     test_page_path = os.path.join(frontend_dir, 'test_webapp.html')
