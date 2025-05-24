@@ -55,7 +55,7 @@ async def init_app():
     bot_app.router.add_route('GET', '/{message_id:[0-9]+}{path_info:.*}', logged_wsgi_handler)
     
     # Корневая страница (ТОЛЬКО корень)
-    bot_app.router.add_route('GET', '/', logged_wsgi_handler)
+    bot_app.router.add_route('GET', '/{path_info:/?}', logged_wsgi_handler)
     
     logger.critical("!!!! УБРАН УНИВЕРСАЛЬНЫЙ CATCH-ALL РОУТ - ТОЛЬКО КОНКРЕТНЫЕ РОУТЫ !!!!")
     
