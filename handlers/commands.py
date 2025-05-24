@@ -215,50 +215,43 @@ async def cmd_reset_webhook(message: Message):
         import asyncio
         await asyncio.sleep(1)
         
-        # Шаг 3: Получаем правильный URL
-        # Попробуем разные варианты URL
-        possible_urls = [
-            "https://splitix-bot-69642ff6c071.herokuapp.com",
-            "https://splitix-bot.herokuapp.com"
-        ]
+        # Шаг 3: Определяем правильный URL с учетом CUSTOM_DOMAIN
+        CUSTOM_DOMAIN = os.getenv('CUSTOM_DOMAIN')
+        if CUSTOM_DOMAIN:
+            WEBHOOK_HOST = f"https://{CUSTOM_DOMAIN}"
+            logger.critical(f"!!!! ИСПОЛЬЗУЕМ КАСТОМНЫЙ ДОМЕН: {CUSTOM_DOMAIN} !!!!")
+        else:
+            APP_NAME = os.getenv('HEROKU_APP_NAME') or os.getenv('APP_NAME') or 'splitix-bot-69642ff6c071'
+            WEBHOOK_HOST = f"https://{APP_NAME}.herokuapp.com"
+            logger.critical(f"!!!! ИСПОЛЬЗУЕМ СТАНДАРТНЫЙ ДОМЕН: {APP_NAME}.herokuapp.com !!!!")
         
-        for base_url in possible_urls:
-            try:
-                WEBHOOK_URL = f"{base_url}/bot/{TELEGRAM_BOT_TOKEN}"
-                logger.critical(f"!!!! ПРОБУЕМ УСТАНОВИТЬ WEBHOOK: {WEBHOOK_URL} !!!!")
-                
-                # Устанавливаем webhook с web_app_data
-                result = await message.bot.set_webhook(
-                    url=WEBHOOK_URL,
-                    allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result", "web_app_data"]
-                )
-                
-                logger.critical(f"!!!! РЕЗУЛЬТАТ set_webhook: {result} !!!!")
-                
-                # Проверяем результат
-                webhook_info = await message.bot.get_webhook_info()
-                logger.critical(f"!!!! ПРОВЕРКА ПОСЛЕ УСТАНОВКИ: {webhook_info} !!!!")
-                
-                if webhook_info.url == WEBHOOK_URL:
-                    # Успешно установлен на этот URL
-                    response = f"✅ **Webhook переустановлен!**\n\n"
-                    response += f"📡 **URL**: `{webhook_info.url}`\n"
-                    response += f"🔧 **Allowed updates**: {webhook_info.allowed_updates}\n"
-                    
-                    if 'web_app_data' in webhook_info.allowed_updates:
-                        response += "\n🎉 **УСПЕХ! web_app_data включен!**"
-                    else:
-                        response += "\n❌ **web_app_data все еще отсутствует...**"
-                        
-                    await message.answer(response, parse_mode="Markdown")
-                    return
-                    
-            except Exception as url_error:
-                logger.error(f"Ошибка с URL {base_url}: {url_error}")
-                continue
+        WEBHOOK_PATH = f"/bot/{TELEGRAM_BOT_TOKEN}"
+        WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
         
-        # Если ни один URL не сработал
-        await message.answer("❌ Не удалось установить webhook ни на один из URL")
+        logger.critical(f"!!!! УСТАНАВЛИВАЕМ WEBHOOK: {WEBHOOK_URL} !!!!")
+        
+        # Устанавливаем webhook с web_app_data
+        result = await message.bot.set_webhook(
+            url=WEBHOOK_URL,
+            allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result", "web_app_data"]
+        )
+        
+        logger.critical(f"!!!! РЕЗУЛЬТАТ set_webhook: {result} !!!!")
+        
+        # Проверяем результат
+        webhook_info = await message.bot.get_webhook_info()
+        logger.critical(f"!!!! ПРОВЕРКА ПОСЛЕ УСТАНОВКИ: {webhook_info} !!!!")
+        
+        response = f"✅ **Webhook переустановлен!**\n\n"
+        response += f"📡 **URL**: `{webhook_info.url}`\n"
+        response += f"🔧 **Allowed updates**: {webhook_info.allowed_updates}\n"
+        
+        if 'web_app_data' in webhook_info.allowed_updates:
+            response += "\n🎉 **УСПЕХ! web_app_data включен!**"
+        else:
+            response += "\n❌ **web_app_data все еще отсутствует...**"
+            
+        await message.answer(response, parse_mode="Markdown")
         
     except Exception as e:
         logger.error(f"Ошибка при сбросе webhook: {e}")
@@ -648,22 +641,28 @@ async def cmd_test_www_webhook(message: Message):
 
 @router.message(Command("setallwebhook"))
 async def cmd_set_all_webhook(message: Message):
-    """Устанавливает webhook с allowed_updates=None (все типы обновлений)."""
+    """Установка webhook с получением ВСЕХ типов обновлений (allowed_updates=None)."""
     try:
-        # Получаем текущий webhook
-        webhook_info = await message.bot.get_webhook_info()
-        
-        if not webhook_info.url:
-            await message.answer("❌ **Ошибка:** Webhook URL не настроен. Сначала установите webhook.")
-            return
-        
         await message.answer("🌐 **Установка webhook с получением ВСЕХ типов обновлений...**")
         
-        logger.critical("!!!! УСТАНОВКА WEBHOOK С allowed_updates=None !!!!")
+        # Определяем правильный URL с учетом CUSTOM_DOMAIN
+        CUSTOM_DOMAIN = os.getenv('CUSTOM_DOMAIN')
+        if CUSTOM_DOMAIN:
+            WEBHOOK_HOST = f"https://{CUSTOM_DOMAIN}"
+            logger.critical(f"!!!! ИСПОЛЬЗУЕМ КАСТОМНЫЙ ДОМЕН: {CUSTOM_DOMAIN} !!!!")
+        else:
+            APP_NAME = os.getenv('HEROKU_APP_NAME') or os.getenv('APP_NAME') or 'splitix-bot-69642ff6c071'
+            WEBHOOK_HOST = f"https://{APP_NAME}.herokuapp.com"
+            logger.critical(f"!!!! ИСПОЛЬЗУЕМ СТАНДАРТНЫЙ ДОМЕН: {APP_NAME}.herokuapp.com !!!!")
+        
+        WEBHOOK_PATH = f"/bot/{TELEGRAM_BOT_TOKEN}"
+        WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+        
+        logger.critical(f"!!!! УСТАНОВКА WEBHOOK С allowed_updates=None: {WEBHOOK_URL} !!!!")
         
         # Устанавливаем webhook с allowed_updates=None
         result = await message.bot.set_webhook(
-            url=webhook_info.url,
+            url=WEBHOOK_URL,
             allowed_updates=None  # Получаем ВСЕ типы обновлений
         )
         
