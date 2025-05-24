@@ -31,9 +31,9 @@ async def init_app():
     # Создаем WSGI handler для Flask
     wsgi_handler = WSGIHandler(flask_app)
     
-    # Добавляем специфичные маршруты для WebApp (ИЗБЕГАЕМ универсальных catch-all)
+    # Добавляем специфичные маршруты для WebApp
     
-    # Тестовая страница WebApp (с поддержкой слеша и без)
+    # Тестовая страница WebApp (ВЫСОКИЙ ПРИОРИТЕТ - ПЕРВАЯ!)
     logger.critical("!!!! РЕГИСТРИРУЮ РОУТЫ ДЛЯ /test_webapp !!!!")
     bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', wsgi_handler)
     bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', wsgi_handler)
@@ -41,15 +41,17 @@ async def init_app():
     # API маршруты
     bot_app.router.add_route('*', '/api/{path_info:.*}', wsgi_handler)
     
-    # Маршруты для чеков (числовые ID)
-    bot_app.router.add_route('GET', '/{message_id:[0-9]+}{path_info:.*}', wsgi_handler)
-    
     # Утилитарные маршруты
     bot_app.router.add_route('GET', '/health{path_info:.*}', wsgi_handler)
     bot_app.router.add_route('*', '/maintenance/{path_info:.*}', wsgi_handler)
     
-    # Корневая страница (ПОСЛЕДНЯЯ, чтобы не перехватывать другие маршруты)
-    bot_app.router.add_route('GET', '/{path_info:.*}', wsgi_handler)
+    # Маршруты для чеков (числовые ID)
+    bot_app.router.add_route('GET', '/{message_id:[0-9]+}{path_info:.*}', wsgi_handler)
+    
+    # Корневая страница - ТОЛЬКО для корня, без catch-all
+    bot_app.router.add_route('GET', '/{path_info:}', wsgi_handler)
+    
+    logger.critical("!!!! ВСЕ РОУТЫ ЗАРЕГИСТРИРОВАНЫ !!!!")
     
     logger.info("Объединенный сервер (Telegram Bot + WebApp) готов к запуску")
     logger.info(f"Webhook path защищен от перехвата Flask маршрутами")
