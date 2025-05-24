@@ -35,9 +35,8 @@ async def init_app():
     
     # Тестовая страница WebApp (с поддержкой слеша и без)
     logger.critical("!!!! РЕГИСТРИРУЮ РОУТЫ ДЛЯ /test_webapp !!!!")
-    bot_app.router.add_route('GET', '/test_webapp', wsgi_handler)
-    bot_app.router.add_route('GET', '/test_webapp/', wsgi_handler)
-    bot_app.router.add_route('GET', '/test_webapp{path_info:.*}', wsgi_handler)
+    bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', wsgi_handler)
+    bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', wsgi_handler)
     
     # API маршруты
     bot_app.router.add_route('*', '/api/{path_info:.*}', wsgi_handler)
