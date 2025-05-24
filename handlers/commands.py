@@ -1,11 +1,11 @@
 import logging
 import os
 from aiogram import Router
-from aiogram.types import Message, InlineKeyboardButton, WebAppInfo
+from aiogram.types import Message, InlineKeyboardButton, WebAppInfo, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from handlers.photo import ReceiptStates
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from config.settings import WEBAPP_URL, TELEGRAM_BOT_TOKEN
 
 logger = logging.getLogger(__name__)
@@ -114,18 +114,31 @@ async def cmd_test_webapp(message: Message):
     # В текущей реализации server.py (маршрут /test_webapp) он ожидает, что WEBAPP_URL не имеет слеша на конце.
     test_webapp_url = f"{WEBAPP_URL}/test_webapp"
     
-    logger.info(f"Формирую кнопку для тестового WebApp: {test_webapp_url}")
+    logger.info(f"Формирую Reply-кнопку для тестового WebApp: {test_webapp_url}")
 
-    keyboard = InlineKeyboardBuilder()
+    # Создаем Reply-клавиатуру с кнопкой WebApp
+    keyboard = ReplyKeyboardBuilder()
     keyboard.row(
-        InlineKeyboardButton(
+        KeyboardButton(
             text="🧪 Открыть тестовый WebApp",
             web_app=WebAppInfo(url=test_webapp_url)
         )
     )
+    
+    # Добавляем кнопку "Убрать клавиатуру"
+    keyboard.row(KeyboardButton(text="🔙 Убрать клавиатуру"))
+    
     await message.answer(
         "Нажмите кнопку ниже, чтобы открыть тестовое веб-приложение для отладки.",
-        reply_markup=keyboard.as_markup()
+        reply_markup=keyboard.as_markup(resize_keyboard=True, one_time_keyboard=False)
+    )
+
+@router.message(lambda message: message.text == "🔙 Убрать клавиатуру")
+async def remove_keyboard(message: Message):
+    """Убирает Reply-клавиатуру."""
+    await message.answer(
+        "✅ Клавиатура убрана.",
+        reply_markup=ReplyKeyboardRemove()
     )
 
 @router.message(Command("webhook"))
