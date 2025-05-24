@@ -1,11 +1,12 @@
 import logging
+import os
 from aiogram import Router
 from aiogram.types import Message, InlineKeyboardButton, WebAppInfo
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from handlers.photo import ReceiptStates
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from config.settings import WEBAPP_URL
+from config.settings import WEBAPP_URL, TELEGRAM_BOT_TOKEN
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -108,6 +109,7 @@ async def cmd_webhook_info(message: Message):
         response += f"📡 **URL**: `{webhook_info.url or 'Не установлен'}`\n"
         response += f"🔢 **Pending updates**: {webhook_info.pending_update_count}\n"
         response += f"📅 **Последняя ошибка**: {webhook_info.last_error_date or 'Нет'}\n"
+        response += f"🔧 **Allowed updates**: {webhook_info.allowed_updates}\n"
         
         if webhook_info.last_error_message:
             response += f"⚠️ **Сообщение об ошибке**: {webhook_info.last_error_message}\n"
@@ -116,4 +118,45 @@ async def cmd_webhook_info(message: Message):
         
     except Exception as e:
         logger.error(f"Ошибка при получении информации о webhook: {e}")
-        await message.answer(f"❌ Ошибка при получении информации о webhook: {e}") 
+        await message.answer(f"❌ Ошибка при получении информации о webhook: {e}")
+
+@router.message(Command("fixwebhook"))
+async def cmd_fix_webhook(message: Message):
+    """Принудительно обновляет настройки webhook с поддержкой web_app_data."""
+    try:
+        # Определяем webhook URL (такой же как в main.py)
+        APP_NAME = os.getenv('HEROKU_APP_NAME') or os.getenv('APP_NAME') or 'splitix-bot'
+        WEBHOOK_HOST = f"https://{APP_NAME}.herokuapp.com"
+        WEBHOOK_PATH = f"/bot/{TELEGRAM_BOT_TOKEN}"
+        WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+        
+        await message.answer("🔧 Обновляю настройки webhook...")
+        logger.critical(f"!!!! ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ WEBHOOK: {WEBHOOK_URL} !!!!")
+        
+        # Принудительно устанавливаем webhook с правильными настройками
+        await message.bot.set_webhook(
+            url=WEBHOOK_URL,
+            allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result", "web_app_data"]
+        )
+        
+        logger.critical("!!!! WEBHOOK ОБНОВЛЕН ПРИНУДИТЕЛЬНО !!!!")
+        
+        # Проверяем результат
+        webhook_info = await message.bot.get_webhook_info()
+        logger.critical(f"!!!! НОВЫЕ НАСТРОЙКИ WEBHOOK !!!! {webhook_info}")
+        
+        response = "✅ **Webhook обновлен!**\n\n"
+        response += f"📡 **URL**: `{webhook_info.url}`\n"
+        response += f"🔧 **Allowed updates**: {webhook_info.allowed_updates}\n"
+        
+        # Проверяем наличие web_app_data
+        if 'web_app_data' in webhook_info.allowed_updates:
+            response += "\n🎉 **web_app_data включен!** Теперь WebApp должен работать."
+        else:
+            response += "\n❌ **web_app_data все еще отсутствует!** Возможна проблема с настройками."
+            
+        await message.answer(response, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении webhook: {e}")
+        await message.answer(f"❌ Ошибка при обновлении webhook: {e}") 
