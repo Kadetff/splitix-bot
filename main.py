@@ -38,7 +38,15 @@ PORT = os.getenv('PORT')
 
 # Если есть PORT (означает что мы на Heroku), настраиваем webhook
 if PORT:
-    WEBHOOK_HOST = f"https://{APP_NAME}.herokuapp.com"
+    # Проверяем, есть ли кастомный домен
+    CUSTOM_DOMAIN = os.getenv('CUSTOM_DOMAIN')
+    if CUSTOM_DOMAIN:
+        WEBHOOK_HOST = f"https://{CUSTOM_DOMAIN}"
+        logger.info(f"Используем кастомный домен: {CUSTOM_DOMAIN}")
+    else:
+        WEBHOOK_HOST = f"https://{APP_NAME}.herokuapp.com"
+        logger.info(f"Используем стандартный Heroku домен: {APP_NAME}.herokuapp.com")
+    
     WEBHOOK_PATH = f"/bot/{TELEGRAM_BOT_TOKEN}"
     WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 else:
