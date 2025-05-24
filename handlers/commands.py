@@ -283,4 +283,73 @@ async def cmd_diag_webhook(message: Message):
         
     except Exception as e:
         logger.error(f"Ошибка в диагностике: {e}")
-        await message.answer(f"❌ Ошибка в диагностике: {e}") 
+        await message.answer(f"❌ Ошибка в диагностике: {e}")
+
+@router.message(Command("safewebhook"))
+async def cmd_safe_webhook(message: Message):
+    """Осторожная установка webhook с учетом rate limiting."""
+    try:
+        # Сначала проверяем текущий статус
+        webhook_info = await message.bot.get_webhook_info()
+        
+        response = "🔍 **Текущий статус:**\n"
+        response += f"URL: `{webhook_info.url}`\n"
+        response += f"Allowed updates: `{webhook_info.allowed_updates}`\n\n"
+        
+        # Если web_app_data уже есть - не трогаем
+        if 'web_app_data' in webhook_info.allowed_updates:
+            response += "✅ **web_app_data уже включен!** Ничего менять не нужно."
+            await message.answer(response, parse_mode="Markdown")
+            return
+        
+        response += "⚠️ **web_app_data отсутствует**\n\n"
+        response += "🎯 **ОДИН** осторожный запрос на изменение webhook...\n"
+        
+        await message.answer(response, parse_mode="Markdown")
+        
+        # ОДИН запрос с правильными настройками
+        logger.critical("!!!! ОСТОРОЖНАЯ УСТАНОВКА WEBHOOK !!!!")
+        
+        try:
+            result = await message.bot.set_webhook(
+                url=webhook_info.url,  # Используем существующий URL
+                allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result", "web_app_data"]
+            )
+            logger.critical(f"!!!! РЕЗУЛЬТАТ ОСТОРОЖНОЙ УСТАНОВКИ: {result} !!!!")
+            
+            # Проверяем результат
+            import asyncio
+            await asyncio.sleep(2)  # Ждем 2 секунды
+            
+            new_webhook = await message.bot.get_webhook_info()
+            logger.critical(f"!!!! НОВЫЙ WEBHOOK ПОСЛЕ ОСТОРОЖНОЙ УСТАНОВКИ: {new_webhook} !!!!")
+            
+            final_response = "✅ **Результат осторожной установки:**\n"
+            final_response += f"Allowed updates: `{new_webhook.allowed_updates}`\n\n"
+            
+            if 'web_app_data' in new_webhook.allowed_updates:
+                final_response += "🎉 **УСПЕХ! web_app_data включен!**\n\n"
+                final_response += "Теперь можно тестировать WebApp!"
+            else:
+                final_response += "❌ **web_app_data все еще отсутствует**\n\n"
+                final_response += "Возможно, есть другие ограничения Telegram API."
+            
+            await message.answer(final_response, parse_mode="Markdown")
+            
+        except Exception as webhook_error:
+            error_message = str(webhook_error)
+            logger.error(f"Ошибка при установке webhook: {error_message}")
+            
+            if "flood control" in error_message.lower() or "too many requests" in error_message.lower():
+                await message.answer(
+                    "🚫 **Flood control активен**\n\n"
+                    "Telegram временно заблокировал изменения webhook.\n"
+                    "Подождите 10-15 минут и попробуйте снова.\n\n"
+                    "❗ НЕ запускайте команды изменения webhook повторно!"
+                )
+            else:
+                await message.answer(f"❌ Ошибка: {error_message}")
+        
+    except Exception as e:
+        logger.error(f"Ошибка в осторожной установке: {e}")
+        await message.answer(f"❌ Ошибка: {e}") 
