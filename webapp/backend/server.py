@@ -94,15 +94,23 @@ load_receipt_data()
 @app.route('/')
 def index():
     """Главная страница"""
+    logger.critical(f"!!!! ВЫЗВАНА ФУНКЦИЯ index() !!!!")
     index_path = os.path.join(frontend_dir, 'index.html')
+    file_size = os.path.getsize(index_path) if os.path.exists(index_path) else 0
+    logger.critical(f"!!!! РАЗМЕР index.html: {file_size} БАЙТ !!!!")
     return send_file(index_path)
 
 @app.route('/test_webapp')
 @app.route('/test_webapp/')
 def test_webapp_page():
     """Отдаем тестовый WebApp"""
+    logger.critical(f"!!!! ВЫЗВАНА ФУНКЦИЯ test_webapp_page() !!!!")
     test_page_path = os.path.join(frontend_dir, 'test_webapp.html')
+    logger.critical(f"!!!! ПУТЬ К ТЕСТОВОМУ ФАЙЛУ: {test_page_path} !!!!")
+    
     if os.path.exists(test_page_path):
+        file_size = os.path.getsize(test_page_path)
+        logger.critical(f"!!!! ФАЙЛ СУЩЕСТВУЕТ, РАЗМЕР: {file_size} БАЙТ !!!!")
         return send_file(test_page_path)
     else:
         logger.error(f"Тестовый файл test_webapp.html не найден по пути: {test_page_path}")
@@ -116,6 +124,7 @@ def health_check():
 @app.route('/<int:message_id>')
 def index_with_message_id(message_id):
     """Обработка запроса с message_id в URL"""
+    logger.critical(f"!!!! ВЫЗВАНА ФУНКЦИЯ index_with_message_id() с message_id: {message_id} !!!!")
     index_path = os.path.join(frontend_dir, 'index.html')
     
     if os.path.exists(index_path):
