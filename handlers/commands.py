@@ -352,4 +352,103 @@ async def cmd_safe_webhook(message: Message):
         
     except Exception as e:
         logger.error(f"Ошибка в осторожной установке: {e}")
-        await message.answer(f"❌ Ошибка: {e}") 
+        await message.answer(f"❌ Ошибка: {e}")
+
+@router.message(Command("testwebappdata"))
+async def cmd_test_web_app_data(message: Message):
+    """Расширенная диагностика проблемы с web_app_data."""
+    try:
+        await message.answer("🔬 **Проведение точной диагностики web_app_data...**")
+        
+        # Получаем текущий webhook
+        webhook_info = await message.bot.get_webhook_info()
+        logger.critical(f"!!!! ТОЧНАЯ ДИАГНОСТИКА: {webhook_info} !!!!")
+        
+        # Проверяем разные варианты написания
+        possible_names = [
+            "web_app_data",
+            "webapp_data", 
+            "webAppData",
+            "web-app-data"
+        ]
+        
+        response = "🔍 **Диагностика web_app_data:**\n\n"
+        response += f"📡 URL: `{webhook_info.url}`\n"
+        response += f"🔧 Allowed updates: `{webhook_info.allowed_updates}`\n\n"
+        
+        # Проверяем каждый вариант
+        found_variants = []
+        for variant in possible_names:
+            if variant in webhook_info.allowed_updates:
+                found_variants.append(variant)
+        
+        if found_variants:
+            response += f"✅ **Найдены варианты:** `{found_variants}`\n\n"
+        else:
+            response += "❌ **Не найдено ни одного варианта web_app_data**\n\n"
+        
+        # Пробуем разные стратегии установки
+        response += "🧪 **Тестирование разных стратегий:**\n\n"
+        
+        try:
+            # Стратегия 1: Только web_app_data
+            logger.critical("!!!! ТЕСТ 1: ТОЛЬКО web_app_data !!!!")
+            result1 = await message.bot.set_webhook(
+                url=webhook_info.url,
+                allowed_updates=["web_app_data"]
+            )
+            
+            # Проверяем результат
+            import asyncio
+            await asyncio.sleep(1)
+            test1_webhook = await message.bot.get_webhook_info()
+            
+            if 'web_app_data' in test1_webhook.allowed_updates:
+                response += "✅ **Тест 1 (только web_app_data): УСПЕХ**\n"
+            else:
+                response += f"❌ **Тест 1: НЕУСПЕХ** - получили: `{test1_webhook.allowed_updates}`\n"
+            
+            # Стратегия 2: Полный список с web_app_data в разных позициях
+            logger.critical("!!!! ТЕСТ 2: web_app_data В НАЧАЛЕ !!!!")
+            result2 = await message.bot.set_webhook(
+                url=webhook_info.url,
+                allowed_updates=["web_app_data", "message", "callback_query", "inline_query", "chosen_inline_result"]
+            )
+            
+            await asyncio.sleep(1)
+            test2_webhook = await message.bot.get_webhook_info()
+            
+            if 'web_app_data' in test2_webhook.allowed_updates:
+                response += "✅ **Тест 2 (web_app_data первым): УСПЕХ**\n"
+            else:
+                response += f"❌ **Тест 2: НЕУСПЕХ** - получили: `{test2_webhook.allowed_updates}`\n"
+            
+            # Стратегия 3: Возвращаем стандартную конфигурацию
+            logger.critical("!!!! ВОЗВРАТ К СТАНДАРТНОЙ КОНФИГУРАЦИИ !!!!")
+            await message.bot.set_webhook(
+                url=webhook_info.url,
+                allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result", "web_app_data"]
+            )
+            
+            await asyncio.sleep(1)
+            final_webhook = await message.bot.get_webhook_info()
+            
+            response += f"\n🔄 **Финальная конфигурация:** `{final_webhook.allowed_updates}`\n\n"
+            
+            if 'web_app_data' in final_webhook.allowed_updates:
+                response += "🎉 **ИТОГ: web_app_data ВКЛЮЧЕН!**\n\n"
+                response += "Теперь попробуйте отправить данные из WebApp."
+            else:
+                response += "❌ **ИТОГ: web_app_data НЕ ВКЛЮЧЕН**\n\n"
+                response += "Возможно, есть ограничения Telegram API или проблемы с конфигурацией."
+            
+            await message.answer(response, parse_mode="Markdown")
+            
+        except Exception as test_error:
+            error_msg = str(test_error)
+            logger.error(f"Ошибка в тестах: {error_msg}")
+            await message.answer(f"❌ **Ошибка в тестах:** `{error_msg}`", parse_mode="Markdown")
+            
+    except Exception as e:
+        logger.error(f"Ошибка в диагностике: {e}")
+        await message.answer(f"❌ Ошибка в диагностике: {e}") 
