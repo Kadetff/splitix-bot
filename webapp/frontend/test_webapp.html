@@ -85,27 +85,35 @@
         // Обработчик кнопки
         document.getElementById('sendBtn').addEventListener('click', function() {
             log('🔘 Кнопка нажата');
+            log(`🔍 tg объект: ${typeof tg}`);
+            log(`🔍 tg.sendData: ${typeof tg.sendData}`);
+            log(`🔍 query_id: ${tg.initDataUnsafe?.query_id || 'отсутствует'}`);
+            log(`🔍 user_id: ${tg.initDataUnsafe?.user?.id || 'отсутствует'}`);
             
             try {
-                const data = "Привет";
+                const data = "Привет от " + new Date().toISOString();
                 log(`📤 Отправляем: "${data}"`);
                 
                 if (tg && typeof tg.sendData === 'function') {
+                    log('🚀 Вызываем tg.sendData()...');
                     tg.sendData(data);
-                    log('✅ tg.sendData() выполнена успешно');
+                    log('✅ tg.sendData() выполнена без ошибок');
                     
-                    // Закрываем WebApp через 1 секунду
+                    // Не закрываем сразу, даем время для отправки
                     setTimeout(() => {
+                        log('⏰ Через 2 секунды - проверяем статус...');
                         log('🚪 Закрываем WebApp...');
                         tg.close();
-                    }, 1000);
+                    }, 2000);
                     
                 } else {
                     log('❌ tg.sendData недоступна');
+                    log(`❌ Причина: tg=${typeof tg}, sendData=${typeof tg?.sendData}`);
                 }
                 
             } catch (error) {
-                log('❌ Ошибка: ' + error.message);
+                log('❌ Ошибка в try-catch: ' + error.message);
+                log('❌ Stack: ' + error.stack);
             }
         });
     </script>
