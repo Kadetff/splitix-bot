@@ -854,4 +854,55 @@ async def cmd_test_domain_url(message: Message):
         
     except Exception as e:
         logger.error(f"Ошибка в тесте URL домена: {e}")
+        await message.answer(f"❌ Ошибка: {e}")
+
+@router.message(Command("chatgpttest"))
+async def cmd_chatgpt_test(message: Message):
+    """Тестирует теорию ChatGPT: web_app_data НЕ нужен в allowed_updates."""
+    try:
+        await message.answer("🧠 **ChatGPT теория**: web_app_data приходит внутри обычного 'message'")
+        
+        # Получаем текущий webhook
+        webhook_info = await message.bot.get_webhook_info()
+        
+        response = "🔍 **Текущий webhook:**\n"
+        response += f"URL: `{webhook_info.url}`\n"
+        response += f"Allowed updates: `{webhook_info.allowed_updates}`\n\n"
+        
+        # По теории ChatGPT: убираем web_app_data, оставляем только message
+        logger.critical("!!!! CHATGPT ТЕСТ: УБИРАЕМ web_app_data ИЗ allowed_updates !!!!")
+        
+        result = await message.bot.set_webhook(
+            url=webhook_info.url,
+            allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result"]
+            # УБРАЛИ "web_app_data" - по теории ChatGPT он не нужен!
+        )
+        
+        if result:
+            await message.answer("⏳ **Проверяю результат...**")
+            
+            import asyncio
+            await asyncio.sleep(2)
+            
+            new_webhook = await message.bot.get_webhook_info()
+            logger.critical(f"!!!! РЕЗУЛЬТАТ БЕЗ web_app_data: {new_webhook} !!!!")
+            
+            final_response = "🎯 **Результат теста ChatGPT:**\n\n"
+            final_response += f"📡 URL: `{new_webhook.url}`\n"
+            final_response += f"🔧 Allowed updates: `{new_webhook.allowed_updates}`\n\n"
+            
+            if 'web_app_data' in (new_webhook.allowed_updates or []):
+                final_response += "❌ **web_app_data все еще есть** (Telegram добавил автоматически)\n\n"
+            else:
+                final_response += "✅ **web_app_data НЕТ в списке** (как и должно быть по ChatGPT)\n\n"
+            
+            final_response += "🧪 **Теперь протестируйте WebApp:** `/testwebapp`\n\n"
+            final_response += "💡 **Теория:** данные должны приходить как обычное сообщение с полем web_app_data"
+            
+            await message.answer(final_response, parse_mode="Markdown")
+        else:
+            await message.answer("❌ Ошибка установки webhook")
+            
+    except Exception as e:
+        logger.error(f"Ошибка в ChatGPT тесте: {e}")
         await message.answer(f"❌ Ошибка: {e}") 
