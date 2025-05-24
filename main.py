@@ -50,7 +50,7 @@ async def on_startup(bot: Bot) -> None:
         logger.info(f"Настройка webhook: {WEBHOOK_URL}")
         await bot.set_webhook(
             url=WEBHOOK_URL,
-            allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result"]
+            allowed_updates=["message", "callback_query", "inline_query", "chosen_inline_result", "web_app_data"]
         )
         logger.info("Webhook установлен успешно")
     else:
