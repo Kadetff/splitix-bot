@@ -91,7 +91,6 @@ def save_receipt_data_to_file():
 # Загружаем данные при запуске
 load_receipt_data()
 
-@app.route('/')
 def index():
     """Главная страница"""
     logger.critical(f"!!!! ВЫЗВАНА ФУНКЦИЯ index() !!!!")
@@ -105,6 +104,9 @@ def index():
 def test_webapp_page():
     """Отдаем тестовый WebApp"""
     logger.critical(f"!!!! ВЫЗВАНА ФУНКЦИЯ test_webapp_page() !!!!")
+    logger.critical(f"!!!! FLASK REQUEST.URL: {request.url} !!!!")
+    logger.critical(f"!!!! FLASK REQUEST.PATH: {request.path} !!!!")
+    logger.critical(f"!!!! FLASK REQUEST.SCRIPT_ROOT: {request.script_root} !!!!")
     test_page_path = os.path.join(frontend_dir, 'test_webapp.html')
     logger.critical(f"!!!! ПУТЬ К ТЕСТОВОМУ ФАЙЛУ: {test_page_path} !!!!")
     
@@ -115,6 +117,21 @@ def test_webapp_page():
     else:
         logger.error(f"Тестовый файл test_webapp.html не найден по пути: {test_page_path}")
         return "Тестовый файл не найден", 404
+
+@app.route('/')
+def test_root_handler():
+    """Специальный обработчик для диагностики корневых запросов"""
+    logger.critical(f"!!!! FLASK ROOT HANDLER - REQUEST.URL: {request.url} !!!!")
+    logger.critical(f"!!!! FLASK ROOT HANDLER - REQUEST.PATH: {request.path} !!!!")
+    logger.critical(f"!!!! FLASK ROOT HANDLER - REQUEST.SCRIPT_ROOT: {request.script_root} !!!!")
+    
+    # Если это запрос к test_webapp через корневой handler, перенаправляем
+    if 'test_webapp' in request.url:
+        logger.critical(f"!!!! ПЕРЕНАПРАВЛЯЕМ test_webapp ЗАПРОС !!!!")
+        return test_webapp_page()
+    
+    # В остальных случаях отдаем обычную главную страницу
+    return index()
 
 @app.route('/health')
 def health_check():
