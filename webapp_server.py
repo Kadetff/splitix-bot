@@ -167,7 +167,7 @@ async def init_app():
                 content_length = len(body)
                 
                 # Создаем environ с правильным путем
-                environ = await self._get_environ(request, body, content_length)
+                environ = self._get_environ(request, body, content_length)
                 environ['PATH_INFO'] = full_path
                 environ['REQUEST_URI'] = full_path
                 
