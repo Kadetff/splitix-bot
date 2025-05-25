@@ -160,12 +160,25 @@ async def init_app() -> web.Application:
     # ---- import Flask --------------------------------------------------------
     from webapp.backend.server import app as flask_app
 
-    def mount(prefix: str):
-        handler = PrefixedWSGIHandler(flask_app, prefix)
+#    def mount(prefix: str):
+#        handler = PrefixedWSGIHandler(flask_app, prefix)
+#        app.router.add_route("*", f"{prefix}{{path_info:.*}}", handler)
+#
+#    for p in ("/test_webapp", "/app", "/api", "/health", "/static"):
+#        mount(p)
+
+
+    def mount(prefix: str, *, strip: bool):
+        handler = PrefixedWSGIHandler(flask_app, prefix, strip_prefix=strip)
         app.router.add_route("*", f"{prefix}{{path_info:.*}}", handler)
 
-    for p in ("/test_webapp", "/app", "/api", "/health", "/static"):
-        mount(p)
+    # 1. /api  – во Flask-маршрутах НЕТ /api
+    mount("/api", strip=True)
+    # 2. /app  – во Flask-маршрутах prefix УЖЕ есть
+    mount("/app", strip=False)
+
+    for p in ("/test_webapp", "/health", "/static"):
+            mount(p, strip=False)
 
     logger.info("Unified server ready – mounted prefixes %s", ["/test_webapp", "/app", "/api", "/health", "/static"])
     return app
