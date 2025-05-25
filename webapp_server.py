@@ -172,7 +172,7 @@ async def init_app():
                 environ['REQUEST_URI'] = full_path
                 
                 # Запускаем WSGI приложение
-                return await self.run_wsgi_app(environ, request)
+                return self.run_wsgi_app(environ, request)
         
         # Возвращаем экземпляр обработчика
         return PrefixedWSGIHandler(flask_app, prefix)
