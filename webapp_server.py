@@ -163,7 +163,9 @@ async def init_app():
     bot_app.router.add_route('*', '/maintenance/{path_info:.*}', logged_wsgi_handler)
     
     # Маршруты для чеков (числовые ID) - НИЗКИЙ ПРИОРИТЕТ
-    bot_app.router.add_route('GET', '/{message_id:[0-9]+}{path_info:.*}', logged_wsgi_handler)
+    # Исключаем пути, начинающиеся с /api/, /health, /maintenance
+    bot_app.router.add_route('GET', '/{message_id:[0-9]+}', logged_wsgi_handler)
+    bot_app.router.add_route('GET', '/{message_id:[0-9]+}/', logged_wsgi_handler)
     
     # Корневая страница (ТОЛЬКО корень) - САМЫЙ НИЗКИЙ ПРИОРИТЕТ
     bot_app.router.add_route('GET', '/{path_info:/?}', logged_wsgi_handler)
