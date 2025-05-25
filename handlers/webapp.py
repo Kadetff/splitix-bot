@@ -2,6 +2,7 @@ import json
 import logging
 from aiogram import Router, F, Bot
 from aiogram.types import Message, InlineQueryResultArticle, InputTextMessageContent
+import html
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -13,6 +14,18 @@ logger.setLevel(logging.DEBUG)
 logger.propagate = False
 
 router = Router()
+
+def escape_markdown(text):
+    """Экранирует специальные символы для Markdown"""
+    if not isinstance(text, str):
+        text = str(text)
+    
+    # Экранируем специальные символы Markdown
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    
+    return text
 
 @router.message(F.web_app_data)
 async def handle_webapp_data_specific_filter(message: Message):
@@ -34,7 +47,7 @@ async def handle_webapp_data_specific_filter(message: Message):
             
             # УНИФИЦИРОВАННЫЙ ОТВЕТ (одинаковый для всех типов кнопок)
             response = f"🎉 **УСПЕХ! Бот получил сообщение от WebApp!**\n\n"
-            response += f"💬 **Сообщение**: `{raw_data}`\n"
+            response += f"💬 **Сообщение**: `{escape_markdown(raw_data)}`\n"
             response += f"⏰ **Время**: {message.date.strftime('%H:%M:%S')}"
             
             await message.answer(response, parse_mode="Markdown")
@@ -62,21 +75,23 @@ async def handle_webapp_data_specific_filter(message: Message):
             elif button_type == 'reply':
                 response += f"🟢 **Тип кнопки**: Reply\n"
             else:
-                response += f"⚪ **Тип кнопки**: {button_type}\n"
+                response += f"⚪ **Тип кнопки**: {escape_markdown(button_type)}\n"
             
-            # Показываем содержимое данных
+            # Показываем содержимое данных с правильным экранированием
             if isinstance(payload, str):
-                response += f"💬 **Сообщение**: `{payload}`\n"
+                response += f"💬 **Сообщение**: `{escape_markdown(payload)}`\n"
             elif isinstance(payload, dict):
                 if 'message' in payload:
-                    response += f"💬 **Сообщение**: `{payload['message']}`\n"
+                    response += f"💬 **Сообщение**: `{escape_markdown(payload['message'])}`\n"
                 if 'items' in payload:
-                    response += f"📦 **Элементы**: `{payload['items']}`\n"
+                    # Безопасно отображаем массив
+                    items_str = str(payload['items'])
+                    response += f"📦 **Элементы**: `{escape_markdown(items_str)}`\n"
                 if 'count' in payload:
-                    response += f"🔢 **Количество**: `{payload['count']}`\n"
+                    response += f"🔢 **Количество**: `{escape_markdown(str(payload['count']))}`\n"
             
             response += f"⏰ **Время**: {message.date.strftime('%H:%M:%S')}\n"
-            response += f"🔧 **Источник**: {source}"
+            response += f"🔧 **Источник**: {escape_markdown(source)}"
 
             await message.answer(response, parse_mode="Markdown")
                 
@@ -85,7 +100,7 @@ async def handle_webapp_data_specific_filter(message: Message):
             
             # УНИФИЦИРОВАННЫЙ ОТВЕТ для текстовых данных
             response = f"📝 **Текстовые данные от WebApp**\n\n"
-            response += f"💬 **Содержимое**: `{raw_data}`\n"
+            response += f"💬 **Содержимое**: `{escape_markdown(raw_data)}`\n"
             response += f"⏰ **Время**: {message.date.strftime('%H:%M:%S')}\n"
             response += f"⚠️ **Формат**: Не JSON"
             
@@ -95,7 +110,7 @@ async def handle_webapp_data_specific_filter(message: Message):
             
             # УНИФИЦИРОВАННЫЙ ОТВЕТ для ошибок
             response = f"❌ **Ошибка обработки WebApp данных**\n\n"
-            response += f"🚫 **Ошибка**: `{str(e)}`\n"
+            response += f"🚫 **Ошибка**: `{escape_markdown(str(e))}`\n"
             response += f"⏰ **Время**: {message.date.strftime('%H:%M:%S')}"
             
             await message.answer(response, parse_mode="Markdown")

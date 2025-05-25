@@ -20,6 +20,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def escape_markdown(text):
+    """Экранирует специальные символы для Markdown"""
+    if not isinstance(text, str):
+        text = str(text)
+    
+    # Экранируем специальные символы Markdown
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    
+    return text
+
 async def test_answer_webapp_query(request):
     """Endpoint для обработки Inline WebApp данных через answerWebAppQuery"""
     logger.critical(f"!!!! ENDPOINT /api/answer_webapp_query ПОЛУЧИЛ ЗАПРОС !!!!")
@@ -47,21 +59,23 @@ async def test_answer_webapp_query(request):
         payload = result_data.get('payload', 'Нет данных')
         button_type = result_data.get('button_type', 'inline')
         
-        # Формируем ТОЧНО ТАКОЕ ЖЕ сообщение как для Reply-кнопок
+        # Формируем ТОЧНО ТАКОЕ ЖЕ сообщение как для Reply-кнопок с экранированием
         if isinstance(payload, str) and payload.strip() == "Привет":
-            message_text = f"🎉 **УСПЕХ! Бот получил сообщение от WebApp!**\n\n💬 **Сообщение**: `{payload}`\n🔵 **Тип кнопки**: Inline\n⏰ **Время**: {time.strftime('%H:%M:%S')}"
+            message_text = f"🎉 **УСПЕХ! Бот получил сообщение от WebApp!**\n\n💬 **Сообщение**: `{escape_markdown(payload)}`\n🔵 **Тип кнопки**: Inline\n⏰ **Время**: {time.strftime('%H:%M:%S')}"
         else:
             message_text = f"✅ **Данные от WebApp получены!**\n\n🔵 **Тип кнопки**: Inline\n"
             
             if isinstance(payload, str):
-                message_text += f"💬 **Сообщение**: `{payload}`\n"
+                message_text += f"💬 **Сообщение**: `{escape_markdown(payload)}`\n"
             elif isinstance(payload, dict):
                 if 'message' in payload:
-                    message_text += f"💬 **Сообщение**: `{payload['message']}`\n"
+                    message_text += f"💬 **Сообщение**: `{escape_markdown(payload['message'])}`\n"
                 if 'items' in payload:
-                    message_text += f"📦 **Элементы**: `{payload['items']}`\n"
+                    # Безопасно отображаем массив
+                    items_str = str(payload['items'])
+                    message_text += f"📦 **Элементы**: `{escape_markdown(items_str)}`\n"
                 if 'count' in payload:
-                    message_text += f"🔢 **Количество**: `{payload['count']}`\n"
+                    message_text += f"🔢 **Количество**: `{escape_markdown(str(payload['count']))}`\n"
             
             message_text += f"⏰ **Время**: {time.strftime('%H:%M:%S')}\n🔧 **Источник**: test_webapp"
         
