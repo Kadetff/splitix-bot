@@ -156,18 +156,21 @@ async def init_app():
             
             logger.debug(f"WSGI handler: {request.method} {original_path} -> {full_path}")
             
-            # Создаем новый request с исправленным путем
-            # Для этого модифицируем environ в WSGI handler
-            class PathFixingWSGIHandler(WSGIHandler):
-                async def __call__(self, request):
-                    # Исправляем PATH_INFO в environ
-                    environ = await self._get_environ(request)
-                    environ['PATH_INFO'] = full_path
-                    environ['REQUEST_URI'] = full_path
-                    return await self.run_wsgi_app(environ, request)
+            # Временно модифицируем путь в request
+            original_path_attr = request._path
+            original_raw_path_attr = request._raw_path
             
-            path_fixing_handler = PathFixingWSGIHandler(flask_app)
-            return await path_fixing_handler(request)
+            try:
+                # Устанавливаем новый путь
+                request._path = full_path
+                request._raw_path = full_path.encode('utf-8')
+                
+                # Используем стандартный WSGI handler
+                return await wsgi_handler(request)
+            finally:
+                # Восстанавливаем оригинальный путь
+                request._path = original_path_attr
+                request._raw_path = original_raw_path_attr
         
         return handler
     
