@@ -154,23 +154,7 @@ def answer_webapp_query():
         logger.error(f"Ошибка в answer_webapp_query endpoint: {e}")
         return jsonify({"error": str(e)}), 500
 
-# Роут с message_id должен быть в самом конце, чтобы не перехватывать API запросы
-@app.route('/<int:message_id>')
-@app.route('/<int:message_id>/')
-def index_with_message_id(message_id):
-    """Обработка запроса с message_id в URL - отдаем тестовое приложение"""
-    logger.debug(f"Обработка запроса с message_id: {message_id} - отдаем тестовое приложение")
-    test_page_path = os.path.join(frontend_dir, 'debug', 'test_webapp.html')
-    
-    if os.path.exists(test_page_path):
-        try:
-            return send_file(test_page_path)
-        except Exception as e:
-            logger.error(f"Ошибка при отправке файла: {e}")
-            return f"Ошибка при отправке файла: {e}", 500
-    else:
-        logger.error(f"Тестовое приложение не найдено по пути: {test_page_path}")
-        return "Тестовое приложение не найдено", 404
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
