@@ -267,6 +267,7 @@ def save_user_selection(message_id):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/maintenance/cleanup', methods=['POST'])
+@app.route('/maintenance/cleanup/', methods=['POST'])
 def trigger_cleanup():
     """Endpoint для запуска очистки устаревших данных"""
     try:
@@ -286,6 +287,7 @@ def trigger_cleanup():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/maintenance/create_test_data', methods=['POST'])
+@app.route('/maintenance/create_test_data/', methods=['POST'])
 def create_test_data():
     """Endpoint для создания тестовых данных (только в dev окружении)"""
     if ENVIRONMENT == "production":
