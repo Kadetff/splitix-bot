@@ -62,23 +62,23 @@ async def test_answer_webapp_query(request):
         
         # Формируем ТОЧНО ТАКОЕ ЖЕ сообщение как для Reply-кнопок с экранированием
         if isinstance(payload, str) and payload.strip() == "Привет":
-            message_text = f"🎉 **УСПЕХ! Бот получил сообщение от WebApp!**\n\n💬 **Сообщение**: `{payload}`\n🔵 **Тип кнопки**: Inline\n⏰ **Время**: {time.strftime('%H:%M:%S')}"
+            message_text = f"🎉 УСПЕХ! Бот получил сообщение от WebApp!\n\nСообщение: {payload}\nТип кнопки: Inline\nВремя: {time.strftime('%H:%M:%S')}"
         else:
-            message_text = f"✅ **Данные от WebApp получены!**\n\n🔵 **Тип кнопки**: Inline\n"
+            message_text = f"✅ Данные от WebApp получены!\n\nТип кнопки: Inline\n"
             
             if isinstance(payload, str):
-                message_text += f"💬 **Сообщение**: `{payload}`\n"
+                message_text += f"Сообщение: {payload}\n"
             elif isinstance(payload, dict):
                 if 'message' in payload:
-                    message_text += f"💬 **Сообщение**: `{payload['message']}`\n"
+                    message_text += f"Сообщение: {payload['message']}\n"
                 if 'items' in payload:
-                    # Убираем блоки кода для массивов - используем обычный текст
+                    # Простой текст без всякой разметки
                     items_str = str(payload['items'])
-                    message_text += f"📦 **Элементы**: {items_str}\n"
+                    message_text += f"Элементы: {items_str}\n"
                 if 'count' in payload:
-                    message_text += f"🔢 **Количество**: `{payload['count']}`\n"
+                    message_text += f"Количество: {payload['count']}\n"
             
-            message_text += f"⏰ **Время**: {time.strftime('%H:%M:%S')}\n🔧 **Источник**: test_webapp"
+            message_text += f"Время: {time.strftime('%H:%M:%S')}\nИсточник: test_webapp"
         
         # Формируем данные для answerWebAppQuery
         telegram_data = {
@@ -89,8 +89,8 @@ async def test_answer_webapp_query(request):
                 "title": "✅ Данные получены",
                 "description": f"WebApp: {payload if isinstance(payload, str) else 'JSON данные'}",
                 "input_message_content": {
-                    "message_text": message_text,
-                    "parse_mode": "Markdown"
+                    "message_text": message_text
+                    # Убираем parse_mode полностью
                 }
             }
         }
