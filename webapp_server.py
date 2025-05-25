@@ -141,27 +141,52 @@ async def init_app():
     # Создаем WSGI handler для Flask
     wsgi_handler = WSGIHandler(flask_app)
     
-    # Обертка для логирования запросов
+    # Обертка для логирования запросов и исправления путей
     async def logged_wsgi_handler(request):
         logger.debug(f"WSGI handler: {request.method} {request.path_qs}")
         return await wsgi_handler(request)
+    
+    # Специальная обертка для маршрутов с префиксами
+    async def prefixed_wsgi_handler(prefix):
+        async def handler(request):
+            # Восстанавливаем полный путь для Flask
+            original_path = request.path
+            path_info = request.match_info.get('path_info', '')
+            full_path = f"{prefix}/{path_info}" if path_info else prefix
+            
+            logger.debug(f"WSGI handler: {request.method} {original_path} -> {full_path}")
+            
+            # Создаем новый request с исправленным путем
+            # Для этого модифицируем environ в WSGI handler
+            class PathFixingWSGIHandler(WSGIHandler):
+                async def __call__(self, request):
+                    # Исправляем PATH_INFO в environ
+                    environ = await self.get_environ(request)
+                    environ['PATH_INFO'] = full_path
+                    environ['REQUEST_URI'] = full_path
+                    return await self.run_wsgi_app(environ, request)
+            
+            path_fixing_handler = PathFixingWSGIHandler(flask_app)
+            return await path_fixing_handler(request)
+        
+        return handler
     
     # Добавляем специфичные маршруты для WebApp
     
     # Тестовая страница WebApp
     logger.info("Регистрирую роуты для /test_webapp")
-    bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', logged_wsgi_handler)
-    bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', logged_wsgi_handler)
+    bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', prefixed_wsgi_handler('/test_webapp'))
+    bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', prefixed_wsgi_handler('/test_webapp'))
     
     # Основное приложение для работы с чеками
     logger.info("Регистрирую роуты для /app/<message_id>")
-    bot_app.router.add_route('GET', '/app/{path_info:.*}', logged_wsgi_handler)
+    bot_app.router.add_route('GET', '/app/{path_info:.*}', prefixed_wsgi_handler('/app'))
     
     # API маршруты - ВЫСОКИЙ ПРИОРИТЕТ
-    bot_app.router.add_route('*', '/api/{path_info:.*}', logged_wsgi_handler)
+    bot_app.router.add_route('*', '/api/{path_info:.*}', prefixed_wsgi_handler('/api'))
     
     # Утилитарные маршруты
-    bot_app.router.add_route('*', '/health{path_info:.*}', logged_wsgi_handler)
+    bot_app.router.add_route('*', '/health{path_info:.*}', prefixed_wsgi_handler('/health'))
     
 
     
