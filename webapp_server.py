@@ -153,7 +153,11 @@ async def init_app():
     bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', logged_wsgi_handler)
     bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', logged_wsgi_handler)
     
-    # API маршруты (только для тестирования) - ВЫСОКИЙ ПРИОРИТЕТ
+    # Основное приложение для работы с чеками
+    logger.info("Регистрирую роуты для /app/<message_id>")
+    bot_app.router.add_route('GET', '/app/{message_id}', logged_wsgi_handler)
+    
+    # API маршруты - ВЫСОКИЙ ПРИОРИТЕТ
     bot_app.router.add_route('*', '/api/{path_info:.*}', logged_wsgi_handler)
     
     # Утилитарные маршруты
@@ -161,8 +165,9 @@ async def init_app():
     
 
     
-    # Корневая страница (ТОЛЬКО корень) - САМЫЙ НИЗКИЙ ПРИОРИТЕТ
+    # Корневая страница и fallback маршруты - САМЫЙ НИЗКИЙ ПРИОРИТЕТ
     bot_app.router.add_route('GET', '/{path_info:/?}', logged_wsgi_handler)
+    bot_app.router.add_route('GET', '/{path_info:.*}', logged_wsgi_handler)
     
     logger.info("Все роуты зарегистрированы")
     
