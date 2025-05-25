@@ -130,15 +130,22 @@ def test_root_handler():
         logger.debug("Перенаправляем test_webapp запрос")
         return test_webapp_page()
     
+    # Если это запрос к health через корневой handler, перенаправляем
+    if 'health' in request.url:
+        logger.debug("Перенаправляем health запрос")
+        return health_check()
+    
     # В остальных случаях отдаем обычную главную страницу
     return index()
 
 @app.route('/health')
+@app.route('/health/')
 def health_check():
     """Проверка работоспособности API"""
     return jsonify({"status": "ok", "message": "API is running"})
 
 @app.route('/<int:message_id>')
+@app.route('/<int:message_id>/')
 def index_with_message_id(message_id):
     """Обработка запроса с message_id в URL"""
     logger.debug(f"Обработка запроса с message_id: {message_id}")
