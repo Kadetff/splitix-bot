@@ -245,18 +245,23 @@ async def init_app() -> web.Application:
 #    logger.info("Объединенный сервер (Telegram Bot + WebApp) готов к запуску")
 #    logger.info(f"Webhook path защищен от перехвата Flask маршрутами")
 #    return bot_app
+#
+#if __name__ == '__main__':
+#    port = int(os.environ.get('PORT', 8000))
+#    
+#    logger.info(f"Запуск объединенного сервера на порту {port}")
+#    logger.info("Включает в себя:")
+#    logger.info("- Telegram Bot (webhook)")
+#    logger.info("- WebApp (Flask)")
+#    
+#    # Создаем и запускаем приложение
+#    web.run_app(
+#        init_app(),
+#        host='0.0.0.0',
+#        port=port
+#    ) 
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8000))
-    
-    logger.info(f"Запуск объединенного сервера на порту {port}")
-    logger.info("Включает в себя:")
-    logger.info("- Telegram Bot (webhook)")
-    logger.info("- WebApp (Flask)")
-    
-    # Создаем и запускаем приложение
-    web.run_app(
-        init_app(),
-        host='0.0.0.0',
-        port=port
-    ) 
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8000"))
+    logger.info("Starting unified server on port %s", port)
+    web.run_app(init_app(), host="0.0.0.0", port=port)
