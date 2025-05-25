@@ -161,7 +161,7 @@ async def init_app():
             class PathFixingWSGIHandler(WSGIHandler):
                 async def __call__(self, request):
                     # Исправляем PATH_INFO в environ
-                    environ = await self.get_environ(request)
+                    environ = await self._get_environ(request)
                     environ['PATH_INFO'] = full_path
                     environ['REQUEST_URI'] = full_path
                     return await self.run_wsgi_app(environ, request)
