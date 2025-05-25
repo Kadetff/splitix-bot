@@ -150,8 +150,8 @@ async def init_app() -> web.Application:
     for p in ("/test_webapp", "/app", "/api", "/health"):
         mount(p)
 
-    # 5. Fallback – everything else → Flask
-    bot_app.router.add_route("*", "/{path_info:.*}", wsgi)
+#    # 5. Fallback – everything else → Flask
+#    bot_app.router.add_route("*", "/{path_info:.*}", wsgi)
 
 
     # 5. Fallback – everything else → Flask
