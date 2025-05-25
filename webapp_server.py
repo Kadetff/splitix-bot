@@ -35,7 +35,7 @@ def escape_markdown(text):
 
 async def test_answer_webapp_query(request):
     """Endpoint для обработки Inline WebApp данных через answerWebAppQuery"""
-    logger.critical(f"!!!! ENDPOINT /api/answer_webapp_query ПОЛУЧИЛ ЗАПРОС !!!!")
+    logger.info("Получен запрос к /api/answer_webapp_query")
     
     try:
         if request.content_type != 'application/json':
@@ -45,7 +45,7 @@ async def test_answer_webapp_query(request):
         query_id = data.get('query_id')
         result_data = data.get('data', {})
         
-        logger.critical(f"!!!! ПОЛУЧЕНЫ ДАННЫЕ: query_id={query_id}, data={result_data} !!!!")
+        logger.info(f"Получены данные: query_id={query_id}, data={result_data}")
         
         if not query_id:
             return web.json_response({"error": "query_id is required"}, status=400)
@@ -95,7 +95,7 @@ async def test_answer_webapp_query(request):
             }
         }
         
-        logger.critical(f"!!!! ОТПРАВЛЯЮ В TELEGRAM API: {json.dumps(telegram_data, ensure_ascii=False, indent=2)} !!!!")
+        logger.debug(f"Отправляю в Telegram API: {json.dumps(telegram_data, ensure_ascii=False, indent=2)}")
         
         # Отправляем answerWebAppQuery
         telegram_url = f"https://api.telegram.org/bot{bot_token}/answerWebAppQuery"
@@ -103,12 +103,12 @@ async def test_answer_webapp_query(request):
         async with aiohttp.ClientSession() as session:
             async with session.post(telegram_url, json=telegram_data, timeout=10) as response:
                 response_text = await response.text()
-                logger.critical(f"!!!! TELEGRAM API RESPONSE: status={response.status}, body={response_text} !!!!")
+                logger.debug(f"Telegram API response: status={response.status}, body={response_text}")
                 
                 if response.status == 200:
                     telegram_result = await response.json()
                     if telegram_result.get('ok'):
-                        logger.critical(f"!!!! УСПЕХ answerWebAppQuery с унифицированным сообщением !!!!")
+                        logger.info("Успешно отправлен answerWebAppQuery")
                         return web.json_response({"success": True, "message": "WebApp query answered successfully"})
                     else:
                         error_desc = telegram_result.get('description', 'Unknown error')
@@ -131,8 +131,8 @@ async def init_app():
     # Создаем основное приложение с ботом
     bot_app = await create_app()
     
-    # ДОБАВЛЯЕМ ПРЯМОЙ API ENDPOINT В AIOHTTP (ВЫСШИЙ ПРИОРИТЕТ)
-    logger.critical("!!!! ДОБАВЛЯЮ ПРЯМОЙ API ENDPOINT /api/answer_webapp_query В AIOHTTP !!!!")
+    # Добавляем прямой API endpoint в aiohttp
+    logger.info("Добавляю API endpoint /api/answer_webapp_query")
     bot_app.router.add_post('/api/answer_webapp_query', test_answer_webapp_query)
     
     # Импортируем Flask приложение
@@ -143,14 +143,13 @@ async def init_app():
     
     # Обертка для логирования запросов
     async def logged_wsgi_handler(request):
-        logger.critical(f"!!!! WSGI HANDLER ПОЛУЧИЛ ЗАПРОС: {request.method} {request.path_qs} !!!!")
-        logger.critical(f"!!!! MATCH INFO: {request.match_info} !!!!")
+        logger.debug(f"WSGI handler: {request.method} {request.path_qs}")
         return await wsgi_handler(request)
     
     # Добавляем специфичные маршруты для WebApp
     
-    # Тестовая страница WebApp (ВЫСОКИЙ ПРИОРИТЕТ - ПЕРВАЯ!)
-    logger.critical("!!!! РЕГИСТРИРУЮ РОУТЫ ДЛЯ /test_webapp !!!!")
+    # Тестовая страница WebApp
+    logger.info("Регистрирую роуты для /test_webapp")
     bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', logged_wsgi_handler)
     bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', logged_wsgi_handler)
     
@@ -168,9 +167,7 @@ async def init_app():
     # Корневая страница (ТОЛЬКО корень)
     bot_app.router.add_route('GET', '/{path_info:/?}', logged_wsgi_handler)
     
-    logger.critical("!!!! ПРЯМОЙ API ENDPOINT ДОБАВЛЕН С ВЫСШИМ ПРИОРИТЕТОМ !!!!")
-    
-    logger.critical("!!!! ВСЕ РОУТЫ ЗАРЕГИСТРИРОВАНЫ !!!!")
+    logger.info("Все роуты зарегистрированы")
     
     logger.info("Объединенный сервер (Telegram Bot + WebApp) готов к запуску")
     logger.info(f"Webhook path защищен от перехвата Flask маршрутами")

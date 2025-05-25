@@ -81,20 +81,14 @@ async def create_app() -> web.Application:
     # Регистрируем команды бота
     await register_commands(bot)
     
-    # Низкоуровневый обработчик ВСЕХ входящих обновлений для отладки
+    # Обработчик входящих обновлений для логирования
     @dp.update.outer_middleware()
-    async def raw_update_logger(handler, event, data):
-        logger.critical(f"!!!! RAW UPDATE RECEIVED BY DISPATCHER !!!! Type: {type(event)}")
-        logger.critical(f"Raw event data: {event.model_dump_json(indent=2) if hasattr(event, 'model_dump_json') else str(event)}")
+    async def update_logger(handler, event, data):
+        logger.debug(f"Получено обновление: {type(event)}")
         
-        # Специальная проверка для сообщений
-        if hasattr(event, 'message') and event.message:
-            msg = event.message
-            logger.critical(f"!!!! MESSAGE DETAILS !!!! content_type: {msg.content_type}")
-            if hasattr(msg, 'web_app_data') and msg.web_app_data:
-                logger.critical(f"!!!! WEB_APP_DATA FOUND !!!! data: {msg.web_app_data.data}")
-            else:
-                logger.critical(f"!!!! NO WEB_APP_DATA in message !!!!")
+        # Логируем WebApp данные если есть
+        if hasattr(event, 'message') and event.message and hasattr(event.message, 'web_app_data') and event.message.web_app_data:
+            logger.info(f"Получены WebApp данные: {event.message.web_app_data.data}")
         
         return await handler(event, data)
     
@@ -139,18 +133,7 @@ async def register_commands(bot: Bot):
         BotCommand(command="start", description="👋 Начать работу с ботом"),
         BotCommand(command="help", description="❓ Помощь по использованию бота"),
         BotCommand(command="split", description="📇 Разделить чек (в группе)"),
-        BotCommand(command="testwebapp", description="🧪 Тестовый WebApp (Reply)"),
         BotCommand(command="testbothwebapp", description="🧪 Тестовый WebApp (Inline + Reply)"),
-        BotCommand(command="webhook", description="🔍 Статус webhook"),
-        BotCommand(command="fixwebhook", description="🔧 Исправить webhook"),
-        BotCommand(command="resetwebhook", description="🔥 Полный сброс webhook"),
-        BotCommand(command="diagwebhook", description="🔬 Диагностика webhook"),
-        BotCommand(command="safewebhook", description="🛡️ Осторожная установка"),
-        BotCommand(command="testwebappdata", description="🧬 Точная диагностика web_app_data"),
-        BotCommand(command="setallwebhook", description="🌐 Webhook для всех типов"),
-        BotCommand(command="testwwwwebhook", description="🌐 Тест webhook с www"),
-        BotCommand(command="testcustomdomain", description="🎯 Настройка кастомного домена"),
-        BotCommand(command="testdomainurl", description="🔗 Тест конкретного домена"),
     ]
     await bot.set_my_commands(commands)
     logger.info("Команды бота зарегистрированы")
@@ -172,17 +155,12 @@ async def main():
     await register_commands(bot)
     
     @dp.update.outer_middleware()
-    async def raw_update_logger(handler, event, data):
-        logger.critical(f"!!!! RAW UPDATE RECEIVED BY DISPATCHER !!!! Type: {type(event)}")
-        logger.critical(f"Raw event data: {event.model_dump_json(indent=2) if hasattr(event, 'model_dump_json') else str(event)}")
+    async def update_logger(handler, event, data):
+        logger.debug(f"Получено обновление: {type(event)}")
         
-        if hasattr(event, 'message') and event.message:
-            msg = event.message
-            logger.critical(f"!!!! MESSAGE DETAILS !!!! content_type: {msg.content_type}")
-            if hasattr(msg, 'web_app_data') and msg.web_app_data:
-                logger.critical(f"!!!! WEB_APP_DATA FOUND !!!! data: {msg.web_app_data.data}")
-            else:
-                logger.critical(f"!!!! NO WEB_APP_DATA in message !!!!")
+        # Логируем WebApp данные если есть
+        if hasattr(event, 'message') and event.message and hasattr(event.message, 'web_app_data') and event.message.web_app_data:
+            logger.info(f"Получены WebApp данные: {event.message.web_app_data.data}")
         
         return await handler(event, data)
     

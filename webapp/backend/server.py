@@ -93,26 +93,19 @@ load_receipt_data()
 
 def index():
     """Главная страница"""
-    logger.critical(f"!!!! ВЫЗВАНА ФУНКЦИЯ index() !!!!")
+    logger.debug("Вызвана функция index()")
     index_path = os.path.join(frontend_dir, 'index.html')
-    file_size = os.path.getsize(index_path) if os.path.exists(index_path) else 0
-    logger.critical(f"!!!! РАЗМЕР index.html: {file_size} БАЙТ !!!!")
     return send_file(index_path)
 
 @app.route('/test_webapp')
 @app.route('/test_webapp/')
 def test_webapp_page():
     """Отдаем тестовый WebApp"""
-    logger.critical(f"!!!! ВЫЗВАНА ФУНКЦИЯ test_webapp_page() !!!!")
-    logger.critical(f"!!!! FLASK REQUEST.URL: {request.url} !!!!")
-    logger.critical(f"!!!! FLASK REQUEST.PATH: {request.path} !!!!")
-    logger.critical(f"!!!! FLASK REQUEST.SCRIPT_ROOT: {request.script_root} !!!!")
+    logger.debug("Вызвана функция test_webapp_page()")
     test_page_path = os.path.join(frontend_dir, 'test_webapp.html')
-    logger.critical(f"!!!! ПУТЬ К ТЕСТОВОМУ ФАЙЛУ: {test_page_path} !!!!")
     
     if os.path.exists(test_page_path):
-        file_size = os.path.getsize(test_page_path)
-        logger.critical(f"!!!! ФАЙЛ СУЩЕСТВУЕТ, РАЗМЕР: {file_size} БАЙТ !!!!")
+        logger.debug(f"Отправляю тестовый файл: {test_page_path}")
         return send_file(test_page_path)
     else:
         logger.error(f"Тестовый файл test_webapp.html не найден по пути: {test_page_path}")
@@ -121,13 +114,11 @@ def test_webapp_page():
 @app.route('/')
 def test_root_handler():
     """Специальный обработчик для диагностики корневых запросов"""
-    logger.critical(f"!!!! FLASK ROOT HANDLER - REQUEST.URL: {request.url} !!!!")
-    logger.critical(f"!!!! FLASK ROOT HANDLER - REQUEST.PATH: {request.path} !!!!")
-    logger.critical(f"!!!! FLASK ROOT HANDLER - REQUEST.SCRIPT_ROOT: {request.script_root} !!!!")
+    logger.debug(f"Flask root handler: {request.url}")
     
     # Если это запрос к test_webapp через корневой handler, перенаправляем
     if 'test_webapp' in request.url:
-        logger.critical(f"!!!! ПЕРЕНАПРАВЛЯЕМ test_webapp ЗАПРОС !!!!")
+        logger.debug("Перенаправляем test_webapp запрос")
         return test_webapp_page()
     
     # В остальных случаях отдаем обычную главную страницу
@@ -141,7 +132,7 @@ def health_check():
 @app.route('/<int:message_id>')
 def index_with_message_id(message_id):
     """Обработка запроса с message_id в URL"""
-    logger.critical(f"!!!! ВЫЗВАНА ФУНКЦИЯ index_with_message_id() с message_id: {message_id} !!!!")
+    logger.debug(f"Обработка запроса с message_id: {message_id}")
     index_path = os.path.join(frontend_dir, 'index.html')
     
     if os.path.exists(index_path):
