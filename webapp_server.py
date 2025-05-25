@@ -129,34 +129,29 @@ async def test_answer_webapp_query(request):
 async def init_app() -> web.Application:
     """Builds the unified aiohttp application."""
 
-    # 1. aiogram bot app (brings its own routes, webhook, etc.)
+    # 1. aiogram bot app (adds its own routes)
     bot_app = await create_app()
 
-    # 2. Our explicit JSON endpoint with higher priority than generic /api/*
+    # 2. High‑priority JSON endpoint
     bot_app.router.add_post("/api/answer_webapp_query", test_answer_webapp_query)
 
-    # 3. Import Flask WSGI application (located in webapp/backend/server.py)
+    # 3. Import Flask WSGI application (webapp/backend/server.py)
     from webapp.backend.server import app as flask_app
+    wsgi = WSGIHandler(flask_app)
 
-    def mount_wsgi(prefix: str):
-        """Mounts *the same* Flask app under a given URL prefix."""
-        handler = WSGIHandler(flask_app, script_name=prefix)
-        # exact URL (no trailing slash)
-        bot_app.router.add_route("*", prefix, handler)
-        # everything below it
-        bot_app.router.add_route("*", f"{prefix}{{path_info:/.*}}", handler)
+    def mount(prefix: str):
+        """Register two routes so that *prefix* and *prefix/...* hit the same handler."""
+        bot_app.router.add_route("*", prefix, wsgi)
+        bot_app.router.add_route("*", f"{prefix}{{path_info:/.*}}", wsgi)
 
-    # 4. Flask sub‑apps
-    mount_wsgi("/test_webapp")
-    mount_wsgi("/app")
-    mount_wsgi("/api")   # other API endpoints
-    mount_wsgi("/health")
+    # 4. Mount Flask behind several prefixes
+    for p in ("/test_webapp", "/app", "/api", "/health"):
+        mount(p)
 
-    # 5. Fallback – root and anything else → Flask
-    root_handler = WSGIHandler(flask_app)
-    bot_app.router.add_route("*", "/{path_info:.*}", root_handler)
+    # 5. Fallback – everything else → Flask
+    bot_app.router.add_route("*", "/{path_info:.*}", wsgi)
 
-    logger.info("Unified server is ready – bot and Flask mounted")
+    logger.info("Unified server ready – bot & Flask mounted")
     return bot_app
 
 # ---------------------------------------------------------------------------
