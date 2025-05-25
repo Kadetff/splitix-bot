@@ -17,7 +17,6 @@ logging.basicConfig(
     level=logging.DEBUG if LOG_LEVEL == "DEBUG" else logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("bot.log"),
         logging.StreamHandler()
     ]
 )
