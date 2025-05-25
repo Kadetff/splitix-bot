@@ -59,13 +59,16 @@ def test_webapp_page():
 @app.route('/app/<int:message_id>')
 def receipt_app(message_id):
     """Отдаем основное приложение для конкретного чека"""
-    logger.debug(f"Запрос к приложению для message_id: {message_id}")
+    logger.info(f"Flask: Запрос к приложению для message_id: {message_id}")
+    logger.info(f"Flask: request.path = {request.path}")
+    logger.info(f"Flask: request.url = {request.url}")
     return index()
 
 @app.route('/')
 def test_root_handler():
     """Специальный обработчик для диагностики корневых запросов"""
-    logger.debug(f"Flask root handler: {request.url}")
+    logger.info(f"Flask root handler: {request.url}")
+    logger.info(f"Flask root handler: request.path = {request.path}")
     
     # Если это запрос к test_webapp через корневой handler, перенаправляем
     if 'test_webapp' in request.url:
@@ -76,6 +79,19 @@ def test_root_handler():
     if 'health' in request.url:
         logger.debug("Перенаправляем health запрос")
         return health_check()
+    
+    # Если это запрос к app через корневой handler, проверяем
+    if '/app/' in request.path:
+        logger.info(f"Flask: Запрос к /app/ через root handler: {request.path}")
+        # Пытаемся извлечь message_id и вызвать receipt_app
+        try:
+            path_parts = request.path.strip('/').split('/')
+            if len(path_parts) == 2 and path_parts[0] == 'app':
+                message_id = int(path_parts[1])
+                logger.info(f"Flask: Извлечен message_id: {message_id}")
+                return receipt_app(message_id)
+        except (ValueError, IndexError) as e:
+            logger.error(f"Flask: Ошибка парсинга message_id из {request.path}: {e}")
     
     # В остальных случаях отдаем обычную главную страницу
     return index()
