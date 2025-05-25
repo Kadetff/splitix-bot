@@ -123,42 +123,47 @@ async def test_answer_webapp_query(request):
         logger.error(f"Ошибка в test_answer_webapp_query: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
+# ---------------------------------------------------------------------------
+# Prefix‑aware WSGI adapter
+# ---------------------------------------------------------------------------
+
+class PrefixedWSGIHandler(WSGIHandler):
+    """Injects *prefix* back into PATH_INFO so that Flask routes still include it."""
+
+    def __init__(self, wsgi_app, prefix: str):
+        super().__init__(wsgi_app)
+        self._prefix = prefix.rstrip("/")  # '/api' etc.
+
+    async def __call__(self, request):  # noqa: D401 – public coroutine
+        body = await request.read()
+        env = self._get_environ(request, body, len(body))
+        path_info = request.match_info.get("path_info", "")
+        env["SCRIPT_NAME"] = self._prefix  # so Flask.url_for works correctly
+        env["PATH_INFO"] = f"{self._prefix}{path_info}"
+        return await super()._run_wsgi_app(env, request)
+
+# ---------------------------------------------------------------------------
 # Application factory
 # ---------------------------------------------------------------------------
 
 async def init_app() -> web.Application:
-    """Builds the unified aiohttp application."""
+    app = await create_app()  # aiogram routes inside
 
-    # 1. aiogram bot app (adds its own routes)
-    bot_app = await create_app()
+    # ---- direct JSON endpoint ------------------------------------------------
+    app.router.add_post("/api/answer_webapp_query", test_answer_webapp_query)
 
-    # 2. High‑priority JSON endpoint
-    bot_app.router.add_post("/api/answer_webapp_query", test_answer_webapp_query)
-
-    # 3. Import Flask WSGI application (webapp/backend/server.py)
+    # ---- import Flask --------------------------------------------------------
     from webapp.backend.server import app as flask_app
-    wsgi = WSGIHandler(flask_app)
 
     def mount(prefix: str):
-        """Register a single route so that prefix and any sub‑path hit the same handler.
-        The pattern ``{path_info:.*}`` *always* fills match_info['path_info'] (even when empty),
-        which `aiohttp_wsgi` requires. Explicit exact‑match route is **not** needed.
-        """
-        bot_app.router.add_route("*", f"{prefix}{{path_info:.*}}", wsgi)
+        handler = PrefixedWSGIHandler(flask_app, prefix)
+        app.router.add_route("*", f"{prefix}{{path_info:.*}}", handler)
 
-    # 4. Mount Flask behind several prefixes
-    for p in ("/test_webapp", "/app", "/api", "/health"):
+    for p in ("/test_webapp", "/app", "/api", "/health", "/static"):
         mount(p)
 
-#    # 5. Fallback – everything else → Flask
-#    bot_app.router.add_route("*", "/{path_info:.*}", wsgi)
-
-
-    # 5. Fallback – everything else → Flask
-    bot_app.router.add_route("*", "/{path_info:.*}", wsgi)
-
-    logger.info("Unified server ready – bot & Flask mounted")
-    return bot_app
+    logger.info("Unified server ready – mounted prefixes %s", ["/test_webapp", "/app", "/api", "/health", "/static"])
+    return app
 
 # ---------------------------------------------------------------------------
 # Entrypoint
