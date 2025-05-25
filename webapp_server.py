@@ -153,18 +153,19 @@ async def init_app():
     bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', logged_wsgi_handler)
     bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', logged_wsgi_handler)
     
-    # API маршруты (остальные API кроме answer_webapp_query)
+    # API маршруты (остальные API кроме answer_webapp_query) - ВЫСОКИЙ ПРИОРИТЕТ
     bot_app.router.add_route('*', '/api/receipt/{path_info:.*}', logged_wsgi_handler)
     bot_app.router.add_route('*', '/api/selection/{path_info:.*}', logged_wsgi_handler)
+    bot_app.router.add_route('*', '/api/{path_info:.*}', logged_wsgi_handler)
     
     # Утилитарные маршруты
-    bot_app.router.add_route('GET', '/health{path_info:.*}', logged_wsgi_handler)
+    bot_app.router.add_route('*', '/health{path_info:.*}', logged_wsgi_handler)
     bot_app.router.add_route('*', '/maintenance/{path_info:.*}', logged_wsgi_handler)
     
-    # Маршруты для чеков (числовые ID)
+    # Маршруты для чеков (числовые ID) - НИЗКИЙ ПРИОРИТЕТ
     bot_app.router.add_route('GET', '/{message_id:[0-9]+}{path_info:.*}', logged_wsgi_handler)
     
-    # Корневая страница (ТОЛЬКО корень)
+    # Корневая страница (ТОЛЬКО корень) - САМЫЙ НИЗКИЙ ПРИОРИТЕТ
     bot_app.router.add_route('GET', '/{path_info:/?}', logged_wsgi_handler)
     
     logger.info("Все роуты зарегистрированы")
