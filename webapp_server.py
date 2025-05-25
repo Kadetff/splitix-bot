@@ -177,10 +177,10 @@ async def init_app() -> web.Application:
     mount("/health", keep=True)
 
     # 3. API: маршруты без /api в декораторе → keep_prefix=False
-    mount("/api", keep=True)
+    mount("/api", keep=False)
 
     # 4. Test page и статика — тоже без префикса в декораторах
-    mount("/test_webapp", keep=True)
+    mount("/test_webapp", keep=False)
     mount("/static", keep=False)
 
     return app          # ← ЭТОТ return должен быть!
