@@ -149,9 +149,18 @@
             log(`📤 Начинаю отправку данных: ${JSON.stringify(data)}`);
             log(`📍 Тип кнопки: ${isInlineButton ? 'Inline' : 'Reply'}`);
             
+            // Формируем унифицированные данные для обеих типов
+            const unifiedData = {
+                source: 'test_webapp',
+                button_type: isInlineButton ? 'inline' : 'reply',
+                query_id: queryId || null,
+                payload: data,
+                timestamp: Date.now()
+            };
+            
             try {
                 if (isInlineButton) {
-                    // Для Inline-кнопок используем answerWebAppQuery через API
+                    // Для Inline-кнопок используем answerWebAppQuery
                     log('🔵 Отправка через answerWebAppQuery (Inline-кнопка)...');
                     
                     const response = await fetch(`${window.location.origin}/api/answer_webapp_query`, {
@@ -161,14 +170,9 @@
                         },
                         body: JSON.stringify({
                             query_id: queryId,
-                            data: {
-                                source: 'test_webapp',
-                                button_type: 'inline',
-                                payload: data,
-                                timestamp: Date.now()
-                            },
-                            title: "Тестовые данные от WebApp",
-                            description: `Данные: ${typeof data === 'string' ? data : JSON.stringify(data)}`
+                            data: unifiedData,
+                            title: "WebApp данные",
+                            description: `${typeof data === 'string' ? data : 'JSON данные'}`
                         })
                     });
 
@@ -178,29 +182,26 @@
                     }
 
                     log('✅ INLINE: answerWebAppQuery выполнен успешно!');
-                    log('📱 Сообщение должно появиться в чате');
+                    log('📱 Сообщение отправлено через Inline Query');
                     return true;
                     
                 } else {
-                    // Для Reply-кнопок используем обычный sendData
+                    // Для Reply-кнопок используем sendData
                     log('🟢 Отправка через sendData (Reply-кнопка)...');
                     
-                    if (!tg.sendData) {
+                    if (!tg || typeof tg.sendData !== 'function') {
                         throw new Error('tg.sendData недоступен');
                     }
 
-                    const dataToSend = typeof data === 'string' ? data : JSON.stringify({
-                        source: 'test_webapp',
-                        button_type: 'reply',
-                        payload: data,
-                        timestamp: Date.now()
-                    });
+                    const dataToSendJson = JSON.stringify(unifiedData);
+                    log(`🎯 Отправляю через tg.sendData(): ${dataToSendJson}`);
                     
-                    tg.sendData(dataToSend);
+                    tg.sendData(dataToSendJson);
                     log('✅ REPLY: tg.sendData() выполнен успешно!');
                     log('📱 Ожидаем ответ от бота...');
                     return true;
                 }
+                
             } catch (error) {
                 log(`❌ Ошибка отправки: ${error.message}`);
                 alert(`Ошибка отправки данных: ${error.message}`);

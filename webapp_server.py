@@ -21,8 +21,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 async def test_answer_webapp_query(request):
-    """Тестовый endpoint для answerWebAppQuery в aiohttp"""
-    logger.critical(f"!!!! ТЕСТОВЫЙ ENDPOINT /api/answer_webapp_query ПОЛУЧИЛ ЗАПРОС !!!!")
+    """Endpoint для обработки Inline WebApp данных через answerWebAppQuery"""
+    logger.critical(f"!!!! ENDPOINT /api/answer_webapp_query ПОЛУЧИЛ ЗАПРОС !!!!")
     
     try:
         if request.content_type != 'application/json':
@@ -31,35 +31,56 @@ async def test_answer_webapp_query(request):
         data = await request.json()
         query_id = data.get('query_id')
         result_data = data.get('data', {})
-        title = data.get('title', 'Данные от WebApp')
-        description = data.get('description', 'Результат выбора товаров')
         
         logger.critical(f"!!!! ПОЛУЧЕНЫ ДАННЫЕ: query_id={query_id}, data={result_data} !!!!")
         
         if not query_id:
             return web.json_response({"error": "query_id is required"}, status=400)
         
-        # Здесь должен быть вызов к Telegram Bot API
+        # Получаем bot token
         bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         if not bot_token:
             logger.error("TELEGRAM_BOT_TOKEN не найден")
             return web.json_response({"error": "Bot token not configured"}, status=500)
+        
+        # Извлекаем данные для формирования сообщения
+        payload = result_data.get('payload', 'Нет данных')
+        button_type = result_data.get('button_type', 'inline')
+        
+        # Формируем ТОЧНО ТАКОЕ ЖЕ сообщение как для Reply-кнопок
+        if isinstance(payload, str) and payload.strip() == "Привет":
+            message_text = f"🎉 **УСПЕХ! Бот получил сообщение от WebApp!**\n\n💬 **Сообщение**: `{payload}`\n🔵 **Тип кнопки**: Inline\n⏰ **Время**: {time.strftime('%H:%M:%S')}"
+        else:
+            message_text = f"✅ **Данные от WebApp получены!**\n\n🔵 **Тип кнопки**: Inline\n"
+            
+            if isinstance(payload, str):
+                message_text += f"💬 **Сообщение**: `{payload}`\n"
+            elif isinstance(payload, dict):
+                if 'message' in payload:
+                    message_text += f"💬 **Сообщение**: `{payload['message']}`\n"
+                if 'items' in payload:
+                    message_text += f"📦 **Элементы**: `{payload['items']}`\n"
+                if 'count' in payload:
+                    message_text += f"🔢 **Количество**: `{payload['count']}`\n"
+            
+            message_text += f"⏰ **Время**: {time.strftime('%H:%M:%S')}\n🔧 **Источник**: test_webapp"
         
         # Формируем данные для answerWebAppQuery
         telegram_data = {
             "web_app_query_id": query_id,
             "result": {
                 "type": "article",
-                "id": str(int(time.time())),  # Простой timestamp как ID
-                "title": title,
-                "description": description,
+                "id": str(int(time.time())),
+                "title": "✅ Данные получены",
+                "description": f"WebApp: {payload if isinstance(payload, str) else 'JSON данные'}",
                 "input_message_content": {
-                    "message_text": f"✅ **Данные от WebApp получены (aiohttp)!**\n\n📱 **Источник**: Inline-кнопка\n📊 **Выбрано**: {len(result_data.get('selected_items', {})) if 'selected_items' in result_data else 'N/A'}\n⏰ **Время**: {description}"
+                    "message_text": message_text,
+                    "parse_mode": "Markdown"
                 }
             }
         }
         
-        # Отправляем запрос к Telegram Bot API
+        # Отправляем answerWebAppQuery
         telegram_url = f"https://api.telegram.org/bot{bot_token}/answerWebAppQuery"
         
         async with aiohttp.ClientSession() as session:
@@ -67,7 +88,7 @@ async def test_answer_webapp_query(request):
                 if response.status == 200:
                     telegram_result = await response.json()
                     if telegram_result.get('ok'):
-                        logger.critical(f"!!!! УСПЕХ answerWebAppQuery через aiohttp: {query_id} !!!!")
+                        logger.critical(f"!!!! УСПЕХ answerWebAppQuery с унифицированным сообщением !!!!")
                         return web.json_response({"success": True, "message": "WebApp query answered successfully"})
                     else:
                         error_desc = telegram_result.get('description', 'Unknown error')
