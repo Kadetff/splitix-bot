@@ -146,6 +146,7 @@ class PrefixedWSGIHandler(WSGIHandler):
 
         if self._keep:
             # Keep prefix as part of the path; SCRIPT_NAME empty
+            env["SCRIPT_NAME"] = ""
             env["PATH_INFO"] = f"{self._prefix}{path_info}" or "/"
         else:
             # Strip prefix into SCRIPT_NAME
