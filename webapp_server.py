@@ -128,21 +128,29 @@ async def test_answer_webapp_query(request):
 # ---------------------------------------------------------------------------
 
 class PrefixedWSGIHandler(WSGIHandler):
+    """Adapter that can *either* keep the URL prefix in PATH_INFO (keep_prefix=True)
+    or strip it into SCRIPT_NAME (keep_prefix=False).
+
+    keep_prefix=True   → Flask routes already include the prefix (e.g. '/app/<id>')
+    keep_prefix=False  → Flask routes declared *without* the prefix (e.g. '/receipt')
     """
-    Делает две вещи:
-    1. Всегда кладёт префикс в SCRIPT_NAME
-    2. Удаляет префикс из PATH_INFO (если он пуст — ставит '/')
-    Работает на aiohttp-wsgi 0.9 и 0.10+
-    """
-    def __init__(self, wsgi_app, prefix: str):
+
+    def __init__(self, wsgi_app, prefix: str, *, keep_prefix: bool):
         super().__init__(wsgi_app)
         self._prefix = prefix.rstrip("/")
+        self._keep = keep_prefix
 
     def _get_environ(self, request, body, content_length):
         env = super()._get_environ(request, body, content_length)
-        path_info = request.match_info.get("path_info", "")
-        env["SCRIPT_NAME"] = self._prefix
-        env["PATH_INFO"] = path_info or "/"
+        path_info = request.match_info.get("path_info", "")  # '' or '/rest'
+
+        if self._keep:
+            # Keep prefix as part of the path; SCRIPT_NAME empty
+            env["PATH_INFO"] = f"{self._prefix}{path_info}" or "/"
+        else:
+            # Strip prefix into SCRIPT_NAME
+            env["SCRIPT_NAME"] = self._prefix
+            env["PATH_INFO"] = path_info or "/"
         return env
 
 # ---------------------------------------------------------------------------
@@ -158,15 +166,22 @@ async def init_app() -> web.Application:
     # ---- import Flask --------------------------------------------------------
     from webapp.backend.server import app as flask_app
 
-    def mount(prefix: str):
-        handler = PrefixedWSGIHandler(flask_app, prefix)
-        app.router.add_route("*", f"{prefix}{{path_info:.*}}", handler)
+    def mount(prefix: str, *, keep: bool):
+        h = PrefixedWSGIHandler(flask_app, prefix, keep_prefix=keep)
+        app.router.add_route("*", f"{prefix}{{path_info:.*}}", h)
 
-    for p in ("/app", "/api", "/health", "/static", "/test_webapp"):
-        mount(p)
+    # 1. Приложение чеков: маршруты вида '/app/<id>' → keep_prefix=True
+    mount("/app", keep=True)
 
-        logger.info("Unified server ready – mounted prefixes %s", ["/test_webapp", "/app", "/api", "/health", "/static"])
-        return app
+    # 2. Health: у вас, похоже, '/health' → keep_prefix=True
+    mount("/health", keep=True)
+
+    # 3. API: маршруты без /api в декораторе → keep_prefix=False
+    mount("/api", keep=True)
+
+    # 4. Test page и статика — тоже без префикса в декораторах
+    mount("/test_webapp", keep=True)
+    mount("/static",      keep=True)
 
 # ---------------------------------------------------------------------------
 # Entrypoint
