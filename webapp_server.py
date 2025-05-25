@@ -178,7 +178,7 @@ async def init_app() -> web.Application:
     mount("/health", keep=True)
 
     # 3. API: маршруты без /api в декораторе → keep_prefix=False
-    mount("/api", keep=False)
+    mount("/api", keep=True)
 
     # 4. Test page и статика — тоже без префикса в декораторах
     mount("/test_webapp", keep=False)
