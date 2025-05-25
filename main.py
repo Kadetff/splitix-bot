@@ -28,7 +28,7 @@ message_states: dict[int, dict[str, Any]] = {}
 # Экспорт message_states для использования в обработчиках
 callbacks.message_states = message_states
 photo.message_states = message_states
-# webapp.message_states = message_states # Временно комментируем для отладки
+webapp.message_states = message_states
 
 # Конфигурация для Heroku
 # Определяем имя приложения из переменных или используем полное имя

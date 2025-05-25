@@ -22,7 +22,7 @@ class ReceiptStates(StatesGroup):
     waiting_for_items_selection = State()
 
 # Будет установлено из main.py
-message_states: Dict[int, Dict[str, Any]] = {}
+message_states: Dict[int, Dict[str, Any]] = None
 
 async def save_receipt_data_to_api(message_id: int, data: Dict[str, Any]) -> bool:
     """Сохраняет данные чека в API для веб-приложения"""
