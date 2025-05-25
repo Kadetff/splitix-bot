@@ -17,6 +17,21 @@ CORS(app)  # Разрешаем CORS для всех маршрутов
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Middleware для логирования всех запросов
+@app.before_request
+def log_request_info():
+    logger.info(f"Flask: {request.method} {request.path} - URL: {request.url}")
+    logger.info(f"Flask: Headers: {dict(request.headers)}")
+    if request.is_json:
+        logger.info(f"Flask: JSON data: {request.json}")
+
+# Добавляем отладочную информацию о всех зарегистрированных маршрутах
+@app.before_first_request
+def log_routes():
+    logger.info("Flask: Зарегистрированные маршруты:")
+    for rule in app.url_map.iter_rules():
+        logger.info(f"Flask: {rule.methods} {rule.rule} -> {rule.endpoint}")
+
 # Убрано хранилище данных чеков - используем только тестовое приложение
 
 # Настройки окружения
@@ -62,6 +77,7 @@ def receipt_app(message_id):
     logger.info(f"Flask: Запрос к приложению для message_id: {message_id}")
     logger.info(f"Flask: request.path = {request.path}")
     logger.info(f"Flask: request.url = {request.url}")
+    logger.info(f"Flask: request.method = {request.method}")
     return index()
 
 @app.route('/')
@@ -102,24 +118,37 @@ def health_check():
     """Проверка работоспособности API"""
     return jsonify({"status": "ok", "message": "API is running"})
 
-@app.route('/api/receipt/<int:message_id>')
-def get_receipt_data(message_id):
-    """Получение данных чека по message_id"""
+@app.route('/api/receipt/<int:message_id>', methods=['GET', 'POST'])
+def handle_receipt_data(message_id):
+    """Получение и сохранение данных чека по message_id"""
     try:
         # Импортируем message_states из handlers.photo
         from handlers.photo import message_states
         
-        if message_id not in message_states:
-            logger.warning(f"Данные чека не найдены для message_id: {message_id}")
-            return jsonify({"error": "Receipt data not found"}), 404
-        
-        receipt_data = message_states[message_id]
-        logger.info(f"Отдаю данные чека для message_id: {message_id}")
-        
-        return jsonify(receipt_data)
+        if request.method == 'GET':
+            # Получение данных чека
+            if message_id not in message_states:
+                logger.warning(f"Данные чека не найдены для message_id: {message_id}")
+                return jsonify({"error": "Receipt data not found"}), 404
+            
+            receipt_data = message_states[message_id]
+            logger.info(f"Отдаю данные чека для message_id: {message_id}")
+            
+            return jsonify(receipt_data)
+            
+        elif request.method == 'POST':
+            # Сохранение данных чека
+            if not request.is_json:
+                return jsonify({"error": "Expected JSON data"}), 400
+            
+            receipt_data = request.json
+            message_states[message_id] = receipt_data
+            logger.info(f"Сохранены данные чека для message_id: {message_id}")
+            
+            return jsonify({"success": True, "message": "Receipt data saved successfully"})
         
     except Exception as e:
-        logger.error(f"Ошибка при получении данных чека: {e}")
+        logger.error(f"Ошибка при обработке данных чека: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/answer_webapp_query', methods=['POST'])
