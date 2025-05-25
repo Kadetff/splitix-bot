@@ -156,21 +156,21 @@ async def init_app():
             
             logger.debug(f"WSGI handler: {request.method} {original_path} -> {full_path}")
             
-            # Временно модифицируем путь в request
-            original_path_attr = request._path
-            original_raw_path_attr = request._raw_path
+            # Создаем новый URL с правильным путем
+            from yarl import URL
             
+            # Получаем оригинальный URL и заменяем путь
+            original_url = request.url
+            new_url = original_url.with_path(full_path)
+            
+            # Создаем новый request с правильным URL
+            # Используем monkey patching для изменения URL
+            original_url_attr = request._url
             try:
-                # Устанавливаем новый путь
-                request._path = full_path
-                request._raw_path = full_path.encode('utf-8')
-                
-                # Используем стандартный WSGI handler
+                request._url = new_url
                 return await wsgi_handler(request)
             finally:
-                # Восстанавливаем оригинальный путь
-                request._path = original_path_attr
-                request._raw_path = original_raw_path_attr
+                request._url = original_url_attr
         
         return handler
     
