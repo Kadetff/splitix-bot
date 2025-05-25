@@ -20,19 +20,43 @@
             padding: 40px 0;
         }
         button { 
-            font-size: 18px; 
-            padding: 15px 30px; 
+            font-size: 16px; 
+            padding: 12px 24px; 
             cursor: pointer; 
             background: var(--tg-theme-button-color, #0088cc);
             color: var(--tg-theme-button-text-color, #fff);
             border: none;
             border-radius: 12px;
-            margin: 20px;
-            width: 100%;
+            margin: 10px;
+            width: calc(100% - 20px);
             max-width: 300px;
         }
         button:hover {
             opacity: 0.8;
+        }
+        .button-group {
+            margin: 20px 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.reply {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #4caf50;
+        }
+        .status.inline {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #2196f3;
+        }
+        .status.unknown {
+            background: #fff3e0;
+            color: #f57c00;
+            border: 1px solid #ff9800;
         }
         #log { 
             margin-top: 20px; 
@@ -41,7 +65,7 @@
             border: 1px solid var(--tg-theme-hint-color, #ddd); 
             text-align: left; 
             white-space: pre-wrap; 
-            font-size: 13px;
+            font-size: 12px;
             border-radius: 8px;
             max-height: 300px;
             overflow-y: auto;
@@ -50,10 +74,18 @@
 </head>
 <body>
     <div class="content">
-        <h1>🚀 Простой тест WebApp</h1>
-        <p>Нажмите кнопку, чтобы отправить "Привет" боту</p>
+        <h1>🚀 Тест WebApp (Обновленный)</h1>
+        <p>Тестирование отправки данных через разные типы кнопок</p>
         
-        <button id="sendBtn">📤 Отправить "Привет"</button>
+        <div id="statusDiv" class="status unknown">
+            🔍 Определяю тип кнопки...
+        </div>
+        
+        <div class="button-group">
+            <button id="sendSimpleBtn">📤 Отправить "Привет"</button>
+            <button id="sendJsonBtn">📦 Отправить JSON данные</button>
+            <button id="testBtn">🧪 Тест определения типа</button>
+        </div>
         
         <div id="log">Загрузка...<br></div>
     </div>
@@ -61,12 +93,28 @@
     <script>
         const tg = window.Telegram.WebApp;
         const logDiv = document.getElementById('log');
+        const statusDiv = document.getElementById('statusDiv');
+        
+        // Переменные для определения типа кнопки
+        let isInlineButton = false;
+        let queryId = null;
 
         function log(message) {
             console.log(message);
             const timestamp = new Date().toISOString().slice(11, 19);
             logDiv.innerHTML += `${timestamp}: ${message}\n`;
             logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(type, details) {
+            statusDiv.className = `status ${type}`;
+            if (type === 'reply') {
+                statusDiv.innerHTML = `🟢 Reply-кнопка<br><small>${details}</small>`;
+            } else if (type === 'inline') {
+                statusDiv.innerHTML = `🔵 Inline-кнопка<br><small>${details}</small>`;
+            } else {
+                statusDiv.innerHTML = `⚠️ Неизвестный тип<br><small>${details}</small>`;
+            }
         }
 
         // Инициализация
@@ -77,52 +125,112 @@
             
             log('✅ Telegram WebApp инициализирован');
             log(`initData длина: ${tg.initData ? tg.initData.length : 0}`);
-            log(`query_id: ${tg.initDataUnsafe?.query_id ? 'есть' : 'нет'}`);
+            
+            // Определяем тип кнопки
+            if (tg.initDataUnsafe && tg.initDataUnsafe.query_id) {
+                queryId = tg.initDataUnsafe.query_id;
+                isInlineButton = true;
+                log(`🔵 Обнаружена Inline-кнопка (query_id: ${queryId})`);
+                updateStatus('inline', `query_id: ${queryId}`);
+            } else {
+                isInlineButton = false;
+                log('🟢 Обнаружена Reply-кнопка (query_id отсутствует)');
+                updateStatus('reply', 'sendData доступен');
+            }
+            
+            log(`Тип кнопки: ${isInlineButton ? 'Inline' : 'Reply'}`);
         } else {
             log('❌ Telegram WebApp не найден');
+            updateStatus('unknown', 'WebApp не инициализирован');
         }
 
-        // Обработчик кнопки
-        document.getElementById('sendBtn').addEventListener('click', function() {
-            const message = "Привет";
-            log(`📤 Отправляю сообщение: "${message}"`);
+        // Универсальная функция отправки данных
+        async function sendDataToTelegram(data) {
+            log(`📤 Начинаю отправку данных: ${JSON.stringify(data)}`);
+            log(`📍 Тип кнопки: ${isInlineButton ? 'Inline' : 'Reply'}`);
             
             try {
-                if (tg && tg.sendData) {
-                    // Основной способ - через sendData
-                    log('🎯 Попытка через tg.sendData()...');
-                    tg.sendData(message);
-                    log('✅ tg.sendData() выполнен');
+                if (isInlineButton) {
+                    // Для Inline-кнопок используем answerWebAppQuery через API
+                    log('🔵 Отправка через answerWebAppQuery (Inline-кнопка)...');
+                    
+                    const response = await fetch(`${window.location.origin}/api/answer_webapp_query`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            query_id: queryId,
+                            data: {
+                                source: 'test_webapp',
+                                button_type: 'inline',
+                                payload: data,
+                                timestamp: Date.now()
+                            },
+                            title: "Тестовые данные от WebApp",
+                            description: `Данные: ${typeof data === 'string' ? data : JSON.stringify(data)}`
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    }
+
+                    log('✅ INLINE: answerWebAppQuery выполнен успешно!');
+                    log('📱 Сообщение должно появиться в чате');
+                    return true;
+                    
                 } else {
-                    throw new Error('tg.sendData недоступен');
-                }
-            } catch (error) {
-                log(`❌ Ошибка tg.sendData: ${error.message}`);
-                
-                // Альтернативный способ - через URL
-                log('🔄 Пробую альтернативный способ через URL...');
-                
-                try {
-                    const botUsername = 'Splitix_bot'; // Замените на имя вашего бота
-                    const data = JSON.stringify({
-                        message: message,
-                        timestamp: Date.now(),
-                        from: 'test_webapp'
+                    // Для Reply-кнопок используем обычный sendData
+                    log('🟢 Отправка через sendData (Reply-кнопка)...');
+                    
+                    if (!tg.sendData) {
+                        throw new Error('tg.sendData недоступен');
+                    }
+
+                    const dataToSend = typeof data === 'string' ? data : JSON.stringify({
+                        source: 'test_webapp',
+                        button_type: 'reply',
+                        payload: data,
+                        timestamp: Date.now()
                     });
                     
-                    const encodedData = encodeURIComponent(data);
-                    const telegramUrl = `https://t.me/${botUsername}?start=webapp_data_${encodedData}`;
-                    
-                    log(`🌐 Перенаправляю на: ${telegramUrl}`);
-                    window.location.href = telegramUrl;
-                } catch (urlError) {
-                    log(`❌ Ошибка URL способа: ${urlError.message}`);
-                    
-                    // Последний способ - через alert
-                    alert(`Данные для отправки: ${message}\n\nSkopируйте и отправьте боту вручную.`);
-                    log('📋 Показан alert с данными для ручной отправки');
+                    tg.sendData(dataToSend);
+                    log('✅ REPLY: tg.sendData() выполнен успешно!');
+                    log('📱 Ожидаем ответ от бота...');
+                    return true;
                 }
+            } catch (error) {
+                log(`❌ Ошибка отправки: ${error.message}`);
+                alert(`Ошибка отправки данных: ${error.message}`);
+                return false;
             }
+        }
+
+        // Обработчики кнопок
+        document.getElementById('sendSimpleBtn').addEventListener('click', function() {
+            log('🎯 Нажата кнопка отправки простого сообщения');
+            sendDataToTelegram("Привет");
+        });
+
+        document.getElementById('sendJsonBtn').addEventListener('click', function() {
+            log('🎯 Нажата кнопка отправки JSON данных');
+            const jsonData = {
+                message: "Тестовое JSON сообщение",
+                items: ["элемент1", "элемент2", "элемент3"],
+                count: 42,
+                timestamp: new Date().toISOString()
+            };
+            sendDataToTelegram(jsonData);
+        });
+
+        document.getElementById('testBtn').addEventListener('click', function() {
+            log('🧪 Тест определения типа кнопки');
+            log(`📊 isInlineButton: ${isInlineButton}`);
+            log(`📊 queryId: ${queryId || 'отсутствует'}`);
+            log(`📊 tg.sendData доступен: ${typeof tg.sendData === 'function'}`);
+            log(`📊 initDataUnsafe: ${JSON.stringify(tg.initDataUnsafe, null, 2)}`);
         });
     </script>
 </body>

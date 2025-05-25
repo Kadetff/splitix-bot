@@ -278,5 +278,82 @@ def trigger_cleanup():
         logger.error(f"Ошибка при запуске очистки: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/answer_webapp_query', methods=['POST'])
+def answer_webapp_query():
+    """API endpoint для answerWebAppQuery (для Inline-кнопок)"""
+    try:
+        if not request.is_json:
+            return jsonify({"error": "Expected JSON data"}), 400
+            
+        data = request.json
+        query_id = data.get('query_id')
+        result_data = data.get('data', {})
+        title = data.get('title', 'Данные от WebApp')
+        description = data.get('description', 'Результат выбора товаров')
+        
+        if not query_id:
+            return jsonify({"error": "query_id is required"}), 400
+        
+        logger.info(f"Получен запрос answerWebAppQuery: query_id={query_id}")
+        logger.info(f"Данные для отправки: {result_data}")
+        
+        # Импортируем и используем функцию из handlers/webapp.py для вызова answerWebAppQuery
+        try:
+            # Здесь нужно вызвать Telegram Bot API answerWebAppQuery
+            # Но у нас нет прямого доступа к bot объекту из Flask
+            # Поэтому мы делаем HTTP запрос к Telegram API
+            
+            import requests
+            import os
+            
+            bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+            if not bot_token:
+                logger.error("TELEGRAM_BOT_TOKEN не найден в переменных окружения")
+                return jsonify({"error": "Bot token not configured"}), 500
+            
+            # Формируем данные для answerWebAppQuery
+            telegram_data = {
+                "web_app_query_id": query_id,
+                "result": {
+                    "type": "article",
+                    "id": str(int(time.time())),
+                    "title": title,
+                    "description": description,
+                    "input_message_content": {
+                        "message_text": f"✅ **Выбор товаров подтвержден**\n\n📱 **Источник**: Inline-клавиатура\n📊 **Выбрано позиций**: {len(result_data.get('selected_items', {}))}\n⏰ **Время**: {datetime.now().strftime('%H:%M:%S')}"
+                    }
+                }
+            }
+            
+            # Отправляем запрос к Telegram Bot API
+            telegram_url = f"https://api.telegram.org/bot{bot_token}/answerWebAppQuery"
+            response = requests.post(telegram_url, json=telegram_data, timeout=10)
+            
+            if response.status_code == 200:
+                telegram_result = response.json()
+                if telegram_result.get('ok'):
+                    logger.info(f"answerWebAppQuery выполнен успешно для query_id: {query_id}")
+                    return jsonify({"success": True, "message": "WebApp query answered successfully"})
+                else:
+                    error_desc = telegram_result.get('description', 'Unknown error')
+                    logger.error(f"Telegram API error: {error_desc}")
+                    return jsonify({"error": f"Telegram API error: {error_desc}"}), 500
+            else:
+                logger.error(f"HTTP error from Telegram API: {response.status_code}")
+                return jsonify({"error": f"HTTP error: {response.status_code}"}), 500
+                
+        except requests.RequestException as e:
+            logger.error(f"Ошибка при запросе к Telegram API: {e}")
+            return jsonify({"error": f"Request error: {str(e)}"}), 500
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка в answerWebAppQuery: {e}")
+            return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+            
+    except Exception as e:
+        logger.error(f"Ошибка в answer_webapp_query endpoint: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=8080) 
+    port = int(os.environ.get('PORT', 5001))
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=port, debug=debug_mode) 

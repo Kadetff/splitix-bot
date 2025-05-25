@@ -540,56 +540,38 @@
                 return;
             }
             
-            if (typeof tg.sendData !== 'function') {
+            // Определяем тип кнопки
+            const isInlineButton = !!queryId;
+            console.log(`[TEST] Тип кнопки: ${isInlineButton ? 'Inline' : 'Reply'}`);
+            debugInfo.innerHTML += `[TEST] Тип кнопки: ${isInlineButton ? 'Inline' : 'Reply'}<br>`;
+            
+            if (!isInlineButton && typeof tg.sendData !== 'function') {
                 console.error('[TEST] tg.sendData не является функцией');
                 debugInfo.innerHTML += `<span style="color: red;">[TEST] tg.sendData не является функцией</span><br>`;
                 alert('Ошибка: tg.sendData недоступен');
                 return;
             }
             
-            // Проверяем наличие критически важных данных
-            if (!initData) {
-                console.error('[TEST] initData отсутствует - это критично для работы WebApp');
-                debugInfo.innerHTML += `<span style="color: red;">[TEST] initData отсутствует - критично!</span><br>`;
-                alert('Предупреждение: initData отсутствует. WebApp может не работать корректно.');
-            }
-            
-            if (!queryId) {
-                console.warn('[TEST] query_id отсутствует - бот не сможет вызвать answerWebAppQuery');
-                debugInfo.innerHTML += `<span style="color: orange;">[TEST] query_id отсутствует</span><br>`;
-            }
-            
             // Формируем тестовые данные
-            const testData = {
-                action: 'test',
-                timestamp: Date.now(),
-                message_id: messageId || 12345,
-                query_id: queryId || null,
-                user_id: userId || 67890,
-                test_data: {
-                    selected_items: {"0": 1, "1": 2},
-                    note: "Тестовая отправка данных от WebApp"
+            const testSelectedItems = {"0": 1, "1": 2};
+            
+            console.log('[TEST] Тестируем отправку через sendDataToTelegram...');
+            debugInfo.innerHTML += `[TEST] Вызываем sendDataToTelegram с тестовыми данными...<br>`;
+            
+            // Используем нашу универсальную функцию
+            sendDataToTelegram(testSelectedItems).then(success => {
+                if (success) {
+                    console.log('[TEST] Отправка завершена успешно');
+                    debugInfo.innerHTML += `<span style="color: green;">[TEST] Отправка завершена успешно!</span><br>`;
+                } else {
+                    console.error('[TEST] Отправка не удалась');
+                    debugInfo.innerHTML += `<span style="color: red;">[TEST] Отправка не удалась</span><br>`;
                 }
-            };
-            
-            const testDataJson = JSON.stringify(testData);
-            console.log('[TEST] Подготовлены тестовые данные:', testDataJson);
-            debugInfo.innerHTML += `[TEST] Данные для отправки: ${testDataJson}<br>`;
-            
-            try {
-                console.log('[TEST] Вызов tg.sendData()...');
-                debugInfo.innerHTML += `[TEST] Вызываем tg.sendData()...<br>`;
-                
-                tg.sendData(testDataJson);
-                
-                console.log('[TEST] tg.sendData() вызван успешно');
-                debugInfo.innerHTML += `<span style="color: green;">[TEST] tg.sendData() вызван успешно!</span><br>`;
-                alert('Тестовые данные отправлены через tg.sendData(). Проверьте логи бота.');
-            } catch (error) {
-                console.error('[TEST] Ошибка при вызове tg.sendData():', error);
+            }).catch(error => {
+                console.error('[TEST] Ошибка при тестировании:', error);
                 debugInfo.innerHTML += `<span style="color: red;">[TEST] Ошибка: ${error.message}</span><br>`;
-                alert(`Ошибка при отправке: ${error.message}`);
-            }
+                alert(`Ошибка при тестировании: ${error.message}`);
+            });
         }
         
         // Функция для загрузки тестовых данных
@@ -919,32 +901,73 @@
         
         // Функция для отправки данных в Telegram
         async function sendDataToTelegram(selectedItems) {
-            console.log(`[DEBUG] Начало sendDataToTelegram. Глобальный messageId: ${messageId}`); // Лог messageId
+            console.log(`[DEBUG] Начало sendDataToTelegram. Глобальный messageId: ${messageId}`);
             
             if (!tg) {
                 console.error('[ERROR] Telegram WebApp (tg) не инициализирован в sendDataToTelegram.');
                 return false;
             }
-            if (typeof tg.sendData !== 'function') {
-                console.error('[ERROR] tg.sendData не является функцией в sendDataToTelegram.');
-                return false;
-            }
+
+            const dataToSend = {
+                message_id: messageId,
+                query_id: queryId,
+                selected_items: selectedItems
+            };
+
+            // Определяем тип запуска WebApp
+            const isInlineButton = !!queryId;
+            console.log(`[DEBUG] Тип кнопки: ${isInlineButton ? 'Inline' : 'Reply'}`);
+            console.log(`[DEBUG] queryId: ${queryId || 'отсутствует'}`);
 
             try {
-                const dataToSend = JSON.stringify({
-                    message_id: messageId,
-                    query_id: queryId,
-                    selected_items: selectedItems
-                });
-                
-                console.log('[DEBUG] Подготовлены данные для отправки в Telegram:', dataToSend);
-                console.log('[DEBUG] Вызов tg.sendData()...');
-                tg.sendData(dataToSend);
-                console.log('[SUCCESS] tg.sendData() УСПЕШНО ВЫЗВАН в sendDataToTelegram. Данные:', dataToSend);
-                alert('ФРОНТЕНД: tg.sendData() была вызвана с данными: ' + dataToSend + '\nПроверьте логи бота и консоль разработчика.');
-                return true;
+                if (isInlineButton) {
+                    // Для Inline-кнопок используем answerWebAppQuery через API бота
+                    console.log('[DEBUG] Используем метод для Inline-кнопки (answerWebAppQuery)');
+                    
+                    const response = await fetch(`${API_BASE_URL}/api/answer_webapp_query`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            query_id: queryId,
+                            data: dataToSend,
+                            title: "Выбор товаров подтвержден",
+                            description: `Выбрано ${Object.keys(selectedItems).length} позиций`
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error(`[ERROR] Ошибка answerWebAppQuery: ${response.status} - ${errorText}`);
+                        alert(`Ошибка отправки данных (Inline): ${response.status} - ${errorText}`);
+                        return false;
+                    }
+
+                    console.log('[SUCCESS] answerWebAppQuery выполнен успешно');
+                    alert('INLINE: Данные отправлены через answerWebAppQuery. Сообщение должно появиться в чате.');
+                    return true;
+                    
+                } else {
+                    // Для Reply-кнопок используем обычный sendData
+                    console.log('[DEBUG] Используем метод для Reply-кнопки (sendData)');
+                    
+                    if (typeof tg.sendData !== 'function') {
+                        console.error('[ERROR] tg.sendData не является функцией в sendDataToTelegram.');
+                        return false;
+                    }
+
+                    const dataToSendJson = JSON.stringify(dataToSend);
+                    console.log('[DEBUG] Подготовлены данные для sendData:', dataToSendJson);
+                    
+                    tg.sendData(dataToSendJson);
+                    console.log('[SUCCESS] tg.sendData() УСПЕШНО ВЫЗВАН в sendDataToTelegram. Данные:', dataToSendJson);
+                    alert('REPLY: tg.sendData() была вызвана с данными: ' + dataToSendJson + '\nПроверьте логи бота.');
+                    return true;
+                }
             } catch (error) {
-                console.error('[ERROR] Синхронная ошибка при вызове tg.sendData():', error);
+                console.error('[ERROR] Ошибка при отправке данных в Telegram:', error);
+                alert(`Ошибка при отправке данных: ${error.message}`);
                 return false;
             }
         }
@@ -1056,71 +1079,6 @@
             }, 2000);
         }
         
-        // Функция для тестирования прямой отправки WebApp данных
-        function testDirectWebAppSend() {
-            console.log('[TEST] Начало тестирования отправки WebApp данных');
-            debugInfo.innerHTML += `[TEST] Начало тестирования прямой отправки...<br>`;
-            
-            // Проверяем инициализацию Telegram WebApp
-            if (!tg) {
-                console.error('[TEST] Telegram WebApp не инициализирован');
-                debugInfo.innerHTML += `<span style="color: red;">[TEST] Telegram WebApp не инициализирован</span><br>`;
-                alert('Ошибка: Telegram WebApp не инициализирован');
-                return;
-            }
-            
-            if (typeof tg.sendData !== 'function') {
-                console.error('[TEST] tg.sendData не является функцией');
-                debugInfo.innerHTML += `<span style="color: red;">[TEST] tg.sendData не является функцией</span><br>`;
-                alert('Ошибка: tg.sendData недоступен');
-                return;
-            }
-            
-            // Проверяем наличие критически важных данных
-            if (!initData) {
-                console.error('[TEST] initData отсутствует - это критично для работы WebApp');
-                debugInfo.innerHTML += `<span style="color: red;">[TEST] initData отсутствует - критично!</span><br>`;
-                alert('Предупреждение: initData отсутствует. WebApp может не работать корректно.');
-            }
-            
-            if (!queryId) {
-                console.warn('[TEST] query_id отсутствует - бот не сможет вызвать answerWebAppQuery');
-                debugInfo.innerHTML += `<span style="color: orange;">[TEST] query_id отсутствует</span><br>`;
-            }
-            
-            // Формируем тестовые данные
-            const testData = {
-                action: 'test',
-                timestamp: Date.now(),
-                message_id: messageId || 12345,
-                query_id: queryId || null,
-                user_id: userId || 67890,
-                test_data: {
-                    selected_items: {"0": 1, "1": 2},
-                    note: "Тестовая отправка данных от WebApp"
-                }
-            };
-            
-            const testDataJson = JSON.stringify(testData);
-            console.log('[TEST] Подготовлены тестовые данные:', testDataJson);
-            debugInfo.innerHTML += `[TEST] Данные для отправки: ${testDataJson}<br>`;
-            
-            try {
-                console.log('[TEST] Вызов tg.sendData()...');
-                debugInfo.innerHTML += `[TEST] Вызываем tg.sendData()...<br>`;
-                
-                tg.sendData(testDataJson);
-                
-                console.log('[TEST] tg.sendData() вызван успешно');
-                debugInfo.innerHTML += `<span style="color: green;">[TEST] tg.sendData() вызван успешно!</span><br>`;
-                alert('Тестовые данные отправлены через tg.sendData(). Проверьте логи бота.');
-            } catch (error) {
-                console.error('[TEST] Ошибка при вызове tg.sendData():', error);
-                debugInfo.innerHTML += `<span style="color: red;">[TEST] Ошибка: ${error.message}</span><br>`;
-                alert(`Ошибка при отправке: ${error.message}`);
-            }
-        }
-
         // Запускаем приложение при загрузке страницы
         document.addEventListener('DOMContentLoaded', initApp);
     </script>

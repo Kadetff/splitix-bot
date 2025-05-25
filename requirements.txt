@@ -7,3 +7,4 @@ aiohttp>=3.8.0
 aiohttp-wsgi>=0.8.0
 pydantic>=2.0.0
 pillow>=9.0.0
+requests>=2.28.0
