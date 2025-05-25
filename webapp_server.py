@@ -128,15 +128,23 @@ async def test_answer_webapp_query(request):
 # ---------------------------------------------------------------------------
 
 class PrefixedWSGIHandler(WSGIHandler):
-    def __init__(self, wsgi_app, prefix):
+    def __init__(self, wsgi_app, prefix: str, *, strip_prefix: bool):
         super().__init__(wsgi_app)
-        self._prefix = prefix.rstrip("/")
+        self._prefix = prefix.rstrip('/')
+        self._strip = strip_prefix
 
     def _get_environ(self, request, body, content_length):
         env = super()._get_environ(request, body, content_length)
-        path_info = request.match_info.get("path_info", "")
-        env["SCRIPT_NAME"] = self._prefix
-        env["PATH_INFO"]   = f"{self._prefix}{path_info}"
+
+        path_info = request.match_info.get("path_info", "")  # '' or '/rest'
+        if self._strip:
+            # Отрезаем префикс из PATH_INFO и кладём его в SCRIPT_NAME
+            env["SCRIPT_NAME"] = self._prefix
+            env["PATH_INFO"]   = path_info or '/'          # '' → '/'
+        else:
+            # Ничего не отрезаем, префикс уже в самом роуте
+            env["PATH_INFO"]   = f"{self._prefix}{path_info}"
+            # SCRIPT_NAME оставляем пустым
         return env
 
 # ---------------------------------------------------------------------------
