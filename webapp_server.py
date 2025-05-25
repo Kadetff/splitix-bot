@@ -147,7 +147,7 @@ async def init_app():
         return await wsgi_handler(request)
     
     # Специальная обертка для маршрутов с префиксами
-    async def prefixed_wsgi_handler(prefix):
+    def prefixed_wsgi_handler(prefix):
         async def handler(request):
             # Восстанавливаем полный путь для Flask
             original_path = request.path
