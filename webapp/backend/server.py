@@ -285,6 +285,62 @@ def trigger_cleanup():
         logger.error(f"Ошибка при запуске очистки: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/maintenance/create_test_data', methods=['POST'])
+def create_test_data():
+    """Endpoint для создания тестовых данных (только в dev окружении)"""
+    if ENVIRONMENT == "production":
+        return jsonify({"error": "Test data creation not allowed in production"}), 403
+    
+    try:
+        # Создаем тестовые данные для message_id=1223
+        test_data = {
+            "items": [
+                {
+                    "id": 0,
+                    "description": "Кофе латте",
+                    "quantity_from_openai": 2,
+                    "unit_price_from_openai": 150.00,
+                    "total_amount_from_openai": 300.00
+                },
+                {
+                    "id": 1,
+                    "description": "Круассан с миндалем",
+                    "quantity_from_openai": 1,
+                    "unit_price_from_openai": 180.00,
+                    "total_amount_from_openai": 180.00
+                },
+                {
+                    "id": 2,
+                    "description": "Салат Цезарь",
+                    "quantity_from_openai": 3,
+                    "unit_price_from_openai": 350.00,
+                    "total_amount_from_openai": 1050.00
+                }
+            ],
+            "user_selections": {},
+            "service_charge_percent": 10.0,
+            "total_check_amount": 1530.00,
+            "total_discount_percent": 5.0,
+            "total_discount_amount": 76.50,
+            "actual_discount_percent": 5.0,
+            "metadata": {
+                "created_at": time.time(),
+                "last_updated": time.time()
+            }
+        }
+        
+        receipt_data["1223"] = test_data
+        save_receipt_data_to_file()
+        
+        return jsonify({
+            "success": True,
+            "message": "Тестовые данные созданы для message_id=1223",
+            "data": test_data
+        })
+    except Exception as e:
+        logger.error(f"Ошибка при создании тестовых данных: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/answer_webapp_query', methods=['POST'])
 def answer_webapp_query():
     """API endpoint для answerWebAppQuery (для Inline-кнопок)"""
