@@ -26,11 +26,14 @@ def log_request_info():
         logger.info(f"Flask: JSON data: {request.json}")
 
 # Добавляем отладочную информацию о всех зарегистрированных маршрутах
-@app.before_first_request
 def log_routes():
     logger.info("Flask: Зарегистрированные маршруты:")
     for rule in app.url_map.iter_rules():
         logger.info(f"Flask: {rule.methods} {rule.rule} -> {rule.endpoint}")
+
+# Вызываем логирование маршрутов при инициализации
+with app.app_context():
+    log_routes()
 
 # Убрано хранилище данных чеков - используем только тестовое приложение
 
