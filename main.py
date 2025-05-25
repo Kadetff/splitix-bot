@@ -38,11 +38,10 @@ PORT = os.getenv('PORT')
 
 # Если есть PORT (означает что мы на Heroku), настраиваем webhook
 if PORT:
-    # Проверяем, есть ли кастомный домен
-    CUSTOM_DOMAIN = os.getenv('CUSTOM_DOMAIN')
-    if CUSTOM_DOMAIN:
-        WEBHOOK_HOST = f"https://{CUSTOM_DOMAIN}"
-        logger.info(f"Используем кастомный домен: {CUSTOM_DOMAIN}")
+    # Проверяем, есть ли WEBAPP_URL (используем его как основу для webhook)
+    if WEBAPP_URL and not WEBAPP_URL.startswith('http://localhost'):
+        WEBHOOK_HOST = WEBAPP_URL
+        logger.info(f"Используем WEBAPP_URL для webhook: {WEBAPP_URL}")
     else:
         WEBHOOK_HOST = f"https://{APP_NAME}.herokuapp.com"
         logger.info(f"Используем стандартный Heroku домен: {APP_NAME}.herokuapp.com")
@@ -129,14 +128,22 @@ async def create_app() -> web.Application:
 
 async def register_commands(bot: Bot):
     """Регистрирует команды бота для отображения в меню."""
+    from config.settings import ENABLE_TEST_COMMANDS
+    
     commands = [
         BotCommand(command="start", description="👋 Начать работу с ботом"),
         BotCommand(command="help", description="❓ Помощь по использованию бота"),
         BotCommand(command="split", description="📇 Разделить чек (в группе)"),
-        BotCommand(command="testbothwebapp", description="🧪 Тестовый WebApp (Inline + Reply)"),
     ]
+    
+    # Добавляем тестовые команды только в dev/staging окружениях
+    if ENABLE_TEST_COMMANDS:
+        commands.append(
+            BotCommand(command="testbothwebapp", description="🧪 Тестовый WebApp (Inline + Reply)")
+        )
+    
     await bot.set_my_commands(commands)
-    logger.info("Команды бота зарегистрированы")
+    logger.info(f"Зарегистрировано {len(commands)} команд (тестовые команды: {'включены' if ENABLE_TEST_COMMANDS else 'отключены'})")
 
 async def main():
     """Главная функция для локального запуска в polling режиме."""

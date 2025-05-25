@@ -38,5 +38,9 @@ else:
     WEBAPP_URL = WEBAPP_URL.strip('"\'')
     logger.info(f"Загружен WEBAPP_URL: {WEBAPP_URL}")
 
+# Environment settings
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+ENABLE_TEST_COMMANDS = os.getenv("ENABLE_TEST_COMMANDS", "true").lower() == "true"
+
 # Logging settings
 LOG_LEVEL = "DEBUG" 

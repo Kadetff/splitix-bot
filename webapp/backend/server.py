@@ -3,7 +3,7 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify, send_from_directory, send_file
+from flask import Flask, request, jsonify, send_from_directory, send_file, abort
 from flask_cors import CORS
 from utils.data_utils import (
     load_json_data,
@@ -91,6 +91,10 @@ def save_receipt_data_to_file():
 # Загружаем данные при запуске
 load_receipt_data()
 
+# Настройки окружения
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+ENABLE_TEST_COMMANDS = os.getenv("ENABLE_TEST_COMMANDS", "true").lower() == "true"
+
 def index():
     """Главная страница"""
     logger.debug("Вызвана функция index()")
@@ -100,9 +104,14 @@ def index():
 @app.route('/test_webapp')
 @app.route('/test_webapp/')
 def test_webapp_page():
-    """Отдаем тестовый WebApp"""
+    """Отдаем тестовый WebApp (только в dev/staging окружениях)"""
+    # Проверяем, разрешены ли тестовые команды
+    if not ENABLE_TEST_COMMANDS:
+        logger.warning(f"Попытка доступа к тестовой странице в {ENVIRONMENT} окружении")
+        abort(404)  # Возвращаем 404 в production
+    
     logger.debug("Вызвана функция test_webapp_page()")
-    test_page_path = os.path.join(frontend_dir, 'test_webapp.html')
+    test_page_path = os.path.join(frontend_dir, 'debug', 'test_webapp.html')
     
     if os.path.exists(test_page_path):
         logger.debug(f"Отправляю тестовый файл: {test_page_path}")
