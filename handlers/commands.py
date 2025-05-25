@@ -7,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 from handlers.photo import ReceiptStates
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from config.settings import WEBAPP_URL, TELEGRAM_BOT_TOKEN
+from utils.keyboards import create_test_webapp_inline_keyboard, create_test_webapp_reply_keyboard
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -21,6 +22,10 @@ HELP_TEXT = (
     "• Убедись, что фото чека четкое и хорошо освещенное\n"
     "• Чек должен быть полностью виден на фото\n"
     "• Если распознавание не удалось, попробуй отправить фото еще раз\n\n"
+    "🧪 Команды для разработчиков:\n"
+    "• /testwebapp - тестирование WebApp (только Reply-кнопка)\n"
+    "• /testbothwebapp - тестирование обеих типов WebApp-кнопок\n"
+    "• /webhook - информация о webhook\n\n"
     "❓ Если у тебя есть вопросы, используй команду /start для начала работы"
 )
 
@@ -918,4 +923,49 @@ async def cmd_chatgpt_test(message: Message):
             
     except Exception as e:
         logger.error(f"Ошибка в ChatGPT тесте: {e}")
-        await message.answer(f"❌ Ошибка: {e}") 
+        await message.answer(f"❌ Ошибка: {e}")
+
+@router.message(Command("testbothwebapp"))
+async def cmd_test_both_webapp(message: Message):
+    """Тестирует WebApp с обеими типами клавиатур: Inline и Reply."""
+    logger.critical(f"!!!! КОМАНДА /testbothwebapp ПОЛУЧЕНА !!!!")
+    
+    if not WEBAPP_URL:
+        await message.answer("❌ Ошибка: URL веб-приложения не настроен в конфигурации.")
+        logger.error("WEBAPP_URL не настроен")
+        return
+
+    # URL для тестового WebApp
+    test_webapp_url = f"{WEBAPP_URL}/test_webapp"
+    
+    logger.info(f"Тестируем оба типа клавиатур для WebApp: {test_webapp_url}")
+
+    # Отправляем сообщение с Inline-клавиатурой
+    await message.answer(
+        "🧪 **Тест #1: Inline-клавиатура с WebApp**\n\n"
+        "Нажмите кнопку ниже, чтобы открыть WebApp через Inline-кнопку:",
+        reply_markup=create_test_webapp_inline_keyboard(test_webapp_url),
+        parse_mode="Markdown"
+    )
+    
+    # Отправляем сообщение с Reply-клавиатурой
+    await message.answer(
+        "🧪 **Тест #2: Reply-клавиатура с WebApp**\n\n"
+        "Используйте кнопку в нижней части экрана для открытия WebApp:",
+        reply_markup=create_test_webapp_reply_keyboard(test_webapp_url),
+        parse_mode="Markdown"
+    )
+    
+    # Информационное сообщение
+    info_message = (
+        "📋 **Инструкция по тестированию:**\n\n"
+        "1. 🔵 **Inline-кнопка** - кнопка в сообщении выше\n"
+        "2. 🟢 **Reply-кнопка** - кнопка в нижней клавиатуре\n\n"
+        "🎯 **Что тестируем:**\n"
+        "• Отправку данных из обеих типов WebApp\n"
+        "• Определение источника кнопки (Inline/Reply)\n"
+        "• Обработку различных форматов данных\n\n"
+        "💡 В WebApp попробуйте отправить простое сообщение 'Привет' или JSON-данные"
+    )
+    
+    await message.answer(info_message, parse_mode="Markdown") 

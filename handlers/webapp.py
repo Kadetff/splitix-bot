@@ -16,26 +16,46 @@ router = Router()
 
 @router.message(F.web_app_data)
 async def handle_webapp_data_specific_filter(message: Message):
-    logger.critical("!!!! DEBUG_WEBAPP_ROUTER: handle_webapp_data_specific_filter (F.web_app_data) TRIGGERED !!!!")
+    """
+    Обработчик данных от WebApp.
+    Поддерживает запуск как из Reply-клавиатуры, так и из Inline-клавиатуры.
+    """
+    logger.critical("!!!! WEBAPP DATA RECEIVED !!!!")
+    logger.critical(f"!!!! Источник кнопки: {'Reply' if message.reply_to_message else 'Inline'} !!!!")
+    
     if message.web_app_data and message.web_app_data.data:
-        logger.critical(f"!!!! DEBUG_WEBAPP_ROUTER: WebApp Data Received: {message.web_app_data.data} !!!!")
-        logger.critical(f"Full message object: {message.model_dump_json(indent=2)}")
+        logger.critical(f"!!!! WebApp Data: {message.web_app_data.data} !!!!")
+        logger.critical(f"!!!! Full message: {message.model_dump_json(indent=2)} !!!!")
         
         raw_data = message.web_app_data.data
         logger.critical(f"!!!! RAW DATA: '{raw_data}' !!!!")
         
+        # Определяем тип запуска WebApp
+        webapp_source = "Reply-клавиатура" if message.reply_to_message else "Inline-клавиатура"
+        
         # Простая проверка: если данные = "Привет", это наш простой тест
         if raw_data.strip() == "Привет":
             logger.critical(f"!!!! УСПЕХ! Получили простое сообщение: '{raw_data}' !!!!")
-            await message.answer(f"🎉 УСПЕХ! Бот получил сообщение от WebApp: '{raw_data}'")
+            response = f"🎉 **УСПЕХ!** Бот получил сообщение от WebApp!\n\n"
+            response += f"📱 **Источник**: {webapp_source}\n"
+            response += f"💬 **Сообщение**: `{raw_data}`\n"
+            response += f"⏰ **Время**: {message.date.strftime('%H:%M:%S')}"
+            
+            await message.answer(response, parse_mode="Markdown")
             return
         
-        # Иначе пытаемся парсить как JSON (для старых тестов)
+        # Пытаемся парсить как JSON для сложных данных
         query_id = None
         try:
             data = json.loads(raw_data)
             query_id = data.get('query_id') 
             logger.info(f"Parsed web_app_data: {data}")
+
+            # Формируем детальный ответ
+            response = f"✅ **Данные от WebApp получены!**\n\n"
+            response += f"📱 **Источник**: {webapp_source}\n"
+            response += f"🔢 **Query ID**: `{query_id or 'отсутствует'}`\n"
+            response += f"📊 **Данные**: ```json\n{json.dumps(data, ensure_ascii=False, indent=2)}\n```"
 
             if query_id:
                 logger.info(f"Attempting to answer WebApp query_id: {query_id}")
@@ -43,38 +63,53 @@ async def handle_webapp_data_specific_filter(message: Message):
                     web_app_query_id=query_id,
                     result=InlineQueryResultArticle(
                         id=str(query_id), 
-                        title="Получено ботом (F.web_app_data)",
-                        input_message_content=InputTextMessageContent(message_text="DEBUG: Бот получил данные от WebApp (F.web_app_data).")
+                        title="Данные получены ботом",
+                        input_message_content=InputTextMessageContent(
+                            message_text=f"✅ Бот успешно получил данные от WebApp (источник: {webapp_source})"
+                        )
                     )
                 )
                 logger.info(f"Successfully called answer_web_app_query for query_id: {query_id}")
-                await message.answer(f"DEBUG: Данные WebApp (c query_id={query_id}) получены и подтверждены фильтром F.web_app_data.")
+                response += f"\n🔄 **Статус**: WebApp query подтвержден"
             else:
-                logger.warning("!!!! DEBUG_WEBAPP_ROUTER: query_id not found in web_app_data. Cannot call answer_web_app_query. !!!!")
-                await message.answer("DEBUG: Данные WebApp получены (F.web_app_data, query_id отсутствует).")
+                logger.warning("!!!! query_id not found in web_app_data !!!!")
+                response += f"\n⚠️ **Статус**: query_id отсутствует"
+                
+            await message.answer(response, parse_mode="Markdown")
                 
         except json.JSONDecodeError:
-            logger.error(f"!!!! DEBUG_WEBAPP_ROUTER: JSONDecodeError parsing message.web_app_data.data: '{raw_data}' !!!!")
-            await message.answer(f"DEBUG: Получены данные от WebApp (не JSON): '{raw_data}'")
+            logger.error(f"!!!! JSONDecodeError parsing web_app_data: '{raw_data}' !!!!")
+            response = f"📝 **Текстовые данные от WebApp**\n\n"
+            response += f"📱 **Источник**: {webapp_source}\n"
+            response += f"💬 **Содержимое**: `{raw_data}`\n"
+            response += f"⚠️ **Формат**: Не JSON"
+            
+            await message.answer(response, parse_mode="Markdown")
         except Exception as e:
-            logger.error(f"!!!! DEBUG_WEBAPP_ROUTER: Unexpected error processing web_app_data: {e} !!!!", exc_info=True)
-            await message.answer("DEBUG: Неожиданная ошибка при парсинге/обработке данных от WebApp (F.web_app_data).")
+            logger.error(f"!!!! Unexpected error processing web_app_data: {e} !!!!", exc_info=True)
+            response = f"❌ **Ошибка обработки WebApp данных**\n\n"
+            response += f"📱 **Источник**: {webapp_source}\n"
+            response += f"🚫 **Ошибка**: `{str(e)}`"
+            
+            await message.answer(response, parse_mode="Markdown")
             
     else:
-        # Эта ветка не должна сработать, если F.web_app_data работает правильно, 
-        # так как сам фильтр уже гарантирует наличие message.web_app_data
-        logger.error("!!!! DEBUG_WEBAPP_ROUTER: F.web_app_data triggered, but web_app_data or data is missing (SHOULD NOT HAPPEN) !!!!")
+        # Эта ветка не должна сработать при правильной работе фильтра F.web_app_data
+        logger.error("!!!! F.web_app_data triggered, but web_app_data is missing !!!!")
 
 # Универсальный обработчик для отладки всех сообщений в webapp роутере
 @router.message()
 async def handle_all_messages_webapp_router(message: Message):
-    logger.critical(f"!!!! WEBAPP_ROUTER: Получено сообщение (НЕ F.web_app_data) !!!! content_type: {message.content_type}")
-    logger.critical(f"!!!! WEBAPP_ROUTER: Полные данные сообщения: {message.model_dump_json(indent=2)}")
+    """
+    Fallback обработчик для отладки сообщений, не пойманных основным фильтром.
+    """
+    logger.critical(f"!!!! WEBAPP_ROUTER FALLBACK !!!! content_type: {message.content_type}")
+    logger.critical(f"!!!! Message data: {message.model_dump_json(indent=2)}")
     
-    # Проверяем, есть ли web_app_data в этом сообщении (хотя фильтр его не поймал)
+    # Проверяем, есть ли web_app_data в этом сообщении
     if hasattr(message, 'web_app_data') and message.web_app_data:
-        logger.critical(f"!!!! WEBAPP_ROUTER: НАЙДЕНО web_app_data в fallback обработчике !!!! data: {message.web_app_data.data}")
+        logger.critical(f"!!!! FOUND web_app_data in fallback !!!! data: {message.web_app_data.data}")
         # Перенаправляем на основной обработчик
         await handle_webapp_data_specific_filter(message)
     else:
-        logger.critical(f"!!!! WEBAPP_ROUTER: web_app_data отсутствует в fallback обработчике !!!!") 
+        logger.critical(f"!!!! NO web_app_data in fallback !!!!") 

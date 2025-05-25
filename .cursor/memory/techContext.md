@@ -36,6 +36,11 @@
 ## Конфигурация
 - **Env переменные**: TELEGRAM_BOT_TOKEN, OPENAI_API_KEY, WEBAPP_URL, PORT, MODEL_PROVIDER
 
+## Деплой
+- **Heroku Container Runtime** - основная платформа для развертывания
+- **GitHub Integration** - автоматический деплой при push в main ветку
+- **Auto Deploy** - включен автодеплой, изменения автоматически применяются
+
 ## Планируемые улучшения
 - **Хранение**: PostgreSQL, Redis (сессии), S3 (медиа)
 - **Frontend**: React + TypeScript
