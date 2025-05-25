@@ -48,7 +48,7 @@ async def handle_webapp_data_specific_filter(message: Message):
             
             # УНИФИЦИРОВАННЫЙ ОТВЕТ (одинаковый для всех типов кнопок)
             response = f"🎉 **УСПЕХ! Бот получил сообщение от WebApp!**\n\n"
-            response += f"💬 **Сообщение**: `{escape_markdown(raw_data)}`\n"
+            response += f"💬 **Сообщение**: `{raw_data}`\n"
             response += f"⏰ **Время**: {message.date.strftime('%H:%M:%S')}"
             
             await message.answer(response, parse_mode="Markdown")
@@ -80,16 +80,16 @@ async def handle_webapp_data_specific_filter(message: Message):
             
             # Показываем содержимое данных с правильным экранированием
             if isinstance(payload, str):
-                response += f"💬 **Сообщение**: `{escape_markdown(payload)}`\n"
+                response += f"💬 **Сообщение**: `{payload}`\n"
             elif isinstance(payload, dict):
                 if 'message' in payload:
-                    response += f"💬 **Сообщение**: `{escape_markdown(payload['message'])}`\n"
+                    response += f"💬 **Сообщение**: `{payload['message']}`\n"
                 if 'items' in payload:
-                    # Безопасно отображаем массив
+                    # Для блоков кода экранирование НЕ нужно
                     items_str = str(payload['items'])
-                    response += f"📦 **Элементы**: `{escape_markdown(items_str)}`\n"
+                    response += f"📦 **Элементы**: `{items_str}`\n"
                 if 'count' in payload:
-                    response += f"🔢 **Количество**: `{escape_markdown(str(payload['count']))}`\n"
+                    response += f"🔢 **Количество**: `{payload['count']}`\n"
             
             response += f"⏰ **Время**: {message.date.strftime('%H:%M:%S')}\n"
             response += f"🔧 **Источник**: {escape_markdown(source)}"
@@ -101,7 +101,7 @@ async def handle_webapp_data_specific_filter(message: Message):
             
             # УНИФИЦИРОВАННЫЙ ОТВЕТ для текстовых данных
             response = f"📝 **Текстовые данные от WebApp**\n\n"
-            response += f"💬 **Содержимое**: `{escape_markdown(raw_data)}`\n"
+            response += f"�� **Содержимое**: `{raw_data}`\n"
             response += f"⏰ **Время**: {message.date.strftime('%H:%M:%S')}\n"
             response += f"⚠️ **Формат**: Не JSON"
             
@@ -111,7 +111,7 @@ async def handle_webapp_data_specific_filter(message: Message):
             
             # УНИФИЦИРОВАННЫЙ ОТВЕТ для ошибок
             response = f"❌ **Ошибка обработки WebApp данных**\n\n"
-            response += f"🚫 **Ошибка**: `{escape_markdown(str(e))}`\n"
+            response += f"🚫 **Ошибка**: `{str(e)}`\n"
             response += f"⏰ **Время**: {message.date.strftime('%H:%M:%S')}"
             
             await message.answer(response, parse_mode="Markdown")
