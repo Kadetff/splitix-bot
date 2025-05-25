@@ -137,10 +137,16 @@ class PrefixedWSGIHandler(WSGIHandler):
     async def __call__(self, request):  # noqa: D401 – public coroutine
         body = await request.read()
         env = self._get_environ(request, body, len(body))
+
+        # Prepend the stripped prefix back so that Flask sees the real path
         path_info = request.match_info.get("path_info", "")
-        env["SCRIPT_NAME"] = self._prefix  # so Flask.url_for works correctly
+        env["SCRIPT_NAME"] = self._prefix
         env["PATH_INFO"] = f"{self._prefix}{path_info}"
-        return await super()._run_wsgi_app(env, request)
+
+        # Different aiohttp-wsgi versions expose either _run_wsgi_app or run_wsgi_app
+        if hasattr(self, "_run_wsgi_app"):
+            return await self._run_wsgi_app(env, request)  # v0.10+
+        return await self.run_wsgi_app(env, request)       # v0.9 and below
 
 # ---------------------------------------------------------------------------
 # Application factory
