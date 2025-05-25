@@ -128,25 +128,16 @@ async def test_answer_webapp_query(request):
 # ---------------------------------------------------------------------------
 
 class PrefixedWSGIHandler(WSGIHandler):
-    """Injects *prefix* back into PATH_INFO so that Flask routes still include it."""
-
-    def __init__(self, wsgi_app, prefix: str):
+    def __init__(self, wsgi_app, prefix):
         super().__init__(wsgi_app)
-        self._prefix = prefix.rstrip("/")  # '/api' etc.
+        self._prefix = prefix.rstrip("/")
 
-    async def __call__(self, request):  # noqa: D401 – public coroutine
-        body = await request.read()
-        env = self._get_environ(request, body, len(body))
-
-        # Prepend the stripped prefix back so that Flask sees the real path
+    def _get_environ(self, request, body, content_length):
+        env = super()._get_environ(request, body, content_length)
         path_info = request.match_info.get("path_info", "")
         env["SCRIPT_NAME"] = self._prefix
-        env["PATH_INFO"] = f"{self._prefix}{path_info}"
-
-        # Different aiohttp-wsgi versions expose either _run_wsgi_app or run_wsgi_app
-        if hasattr(self, "_run_wsgi_app"):
-            return await self._run_wsgi_app(env, request)  # v0.10+
-        return await self.run_wsgi_app(env, request)       # v0.9 and below
+        env["PATH_INFO"]   = f"{self._prefix}{path_info}"
+        return env
 
 # ---------------------------------------------------------------------------
 # Application factory
