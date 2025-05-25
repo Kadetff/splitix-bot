@@ -155,7 +155,7 @@ async def init_app():
     
     # Основное приложение для работы с чеками
     logger.info("Регистрирую роуты для /app/<message_id>")
-    bot_app.router.add_route('GET', '/app/{message_id}', logged_wsgi_handler)
+    bot_app.router.add_route('GET', '/app/{path_info:.*}', logged_wsgi_handler)
     
     # API маршруты - ВЫСОКИЙ ПРИОРИТЕТ
     bot_app.router.add_route('*', '/api/{path_info:.*}', logged_wsgi_handler)
