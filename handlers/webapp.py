@@ -20,8 +20,9 @@ def escape_markdown(text):
     if not isinstance(text, str):
         text = str(text)
     
-    # Экранируем специальные символы Markdown
-    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    # Экранируем только критически важные символы Markdown
+    # Убираем апострофы, точки и другие символы, которые не ломают разметку
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}']
     for char in special_chars:
         text = text.replace(char, f'\\{char}')
     

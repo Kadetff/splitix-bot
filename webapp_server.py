@@ -25,8 +25,9 @@ def escape_markdown(text):
     if not isinstance(text, str):
         text = str(text)
     
-    # Экранируем специальные символы Markdown
-    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    # Экранируем только критически важные символы Markdown
+    # Убираем апострофы, точки и другие символы, которые не ломают разметку
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}']
     for char in special_chars:
         text = text.replace(char, f'\\{char}')
     
@@ -94,11 +95,16 @@ async def test_answer_webapp_query(request):
             }
         }
         
+        logger.critical(f"!!!! ОТПРАВЛЯЮ В TELEGRAM API: {json.dumps(telegram_data, ensure_ascii=False, indent=2)} !!!!")
+        
         # Отправляем answerWebAppQuery
         telegram_url = f"https://api.telegram.org/bot{bot_token}/answerWebAppQuery"
         
         async with aiohttp.ClientSession() as session:
             async with session.post(telegram_url, json=telegram_data, timeout=10) as response:
+                response_text = await response.text()
+                logger.critical(f"!!!! TELEGRAM API RESPONSE: status={response.status}, body={response_text} !!!!")
+                
                 if response.status == 200:
                     telegram_result = await response.json()
                     if telegram_result.get('ok'):
@@ -110,6 +116,7 @@ async def test_answer_webapp_query(request):
                         return web.json_response({"error": f"Telegram API error: {error_desc}"}, status=500)
                 else:
                     logger.error(f"HTTP error from Telegram API: {response.status}")
+                    logger.error(f"Response body: {response_text}")
                     return web.json_response({"error": f"HTTP error: {response.status}"}, status=500)
                     
     except Exception as e:
