@@ -148,31 +148,34 @@ async def init_app():
     
     # Специальная обертка для маршрутов с префиксами
     def prefixed_wsgi_handler(prefix):
-        async def handler(request):
-            # Восстанавливаем полный путь для Flask
-            original_path = request.path
-            path_info = request.match_info.get('path_info', '')
-            full_path = f"{prefix}/{path_info}" if path_info else prefix
+        # Создаем отдельный WSGIHandler с кастомной обработкой
+        class PrefixedWSGIHandler(WSGIHandler):
+            def __init__(self, wsgi_app, prefix):
+                super().__init__(wsgi_app)
+                self.prefix = prefix
             
-            logger.debug(f"WSGI handler: {request.method} {original_path} -> {full_path}")
-            
-            # Создаем новый URL с правильным путем
-            from yarl import URL
-            
-            # Получаем оригинальный URL и заменяем путь
-            original_url = request.url
-            new_url = original_url.with_path(full_path)
-            
-            # Создаем новый request с правильным URL
-            # Используем monkey patching для изменения URL
-            original_url_attr = request._url
-            try:
-                request._url = new_url
-                return await wsgi_handler(request)
-            finally:
-                request._url = original_url_attr
+            async def __call__(self, request):
+                # Восстанавливаем полный путь для Flask
+                original_path = request.path
+                path_info = request.match_info.get('path_info', '')
+                full_path = f"{self.prefix}/{path_info}" if path_info else self.prefix
+                
+                logger.debug(f"WSGI handler: {request.method} {original_path} -> {full_path}")
+                
+                # Получаем тело запроса
+                body = await request.read()
+                content_length = len(body)
+                
+                # Создаем environ с правильным путем
+                environ = await self._get_environ(request, body, content_length)
+                environ['PATH_INFO'] = full_path
+                environ['REQUEST_URI'] = full_path
+                
+                # Запускаем WSGI приложение
+                return await self.run_wsgi_app(environ, request)
         
-        return handler
+        # Возвращаем экземпляр обработчика
+        return PrefixedWSGIHandler(flask_app, prefix)
     
     # Добавляем специфичные маршруты для WebApp
     
