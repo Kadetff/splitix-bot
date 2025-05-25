@@ -85,7 +85,7 @@ async def handle_webapp_data_specific_filter(message: Message):
                 if 'message' in payload:
                     response += f"💬 **Сообщение**: `{payload['message']}`\n"
                 if 'items' in payload:
-                    # Убираем блоки кода для массивов - используем обычный текст
+                    # Массивы БЕЗ блоков кода - только иконка и обычный текст
                     items_str = str(payload['items'])
                     response += f"📦 **Элементы**: {items_str}\n"
                 if 'count' in payload:
