@@ -391,20 +391,20 @@
             const totalsDiv = document.getElementById('receiptTotals');
             let html = '';
 
-            const itemsTotal = receiptData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const itemsTotal = receiptData.items.reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0);
             html += `<div class="total-info"><span>Сумма позиций:</span><span>${itemsTotal.toFixed(2)} ₽</span></div>`;
 
             if (receiptData.total_discount_amount) {
-                html += `<div class="total-info"><span>Скидка:</span><span>-${receiptData.total_discount_amount.toFixed(2)} ₽</span></div>`;
+                html += `<div class="total-info"><span>Скидка:</span><span>-${Number(receiptData.total_discount_amount).toFixed(2)} ₽</span></div>`;
             }
 
             if (receiptData.service_charge_percent) {
-                const serviceAmount = itemsTotal * (receiptData.service_charge_percent / 100);
-                html += `<div class="total-info"><span>Сервисный сбор (${receiptData.service_charge_percent}%):</span><span>+${serviceAmount.toFixed(2)} ₽</span></div>`;
+                const serviceAmount = itemsTotal * (Number(receiptData.service_charge_percent) / 100);
+                html += `<div class="total-info"><span>Сервисный сбор (${Number(receiptData.service_charge_percent)}%):</span><span>+${serviceAmount.toFixed(2)} ₽</span></div>`;
             }
 
             if (receiptData.total_check_amount) {
-                html += `<div class="total-info main"><span>Итого по чеку:</span><span>${receiptData.total_check_amount.toFixed(2)} ₽</span></div>`;
+                html += `<div class="total-info main"><span>Итого по чеку:</span><span>${Number(receiptData.total_check_amount).toFixed(2)} ₽</span></div>`;
             }
 
             totalsDiv.innerHTML = html;
@@ -416,7 +416,11 @@
             let html = '';
 
             receiptData.items.forEach((item, index) => {
-                const total = item.price * item.quantity;
+                const quantity = Number(item.quantity ?? 1);
+                const total = Number(item.total_amount ?? 0);
+                const price = (item.unit_price_from_openai !== undefined && item.unit_price_from_openai !== null)
+                    ? Number(item.unit_price_from_openai)
+                    : (quantity ? total / quantity : 0);
                 html += `
                     <div class="item" data-index="${index}" onclick="toggleItem(${index})">
                         <div class="item-content">
@@ -424,10 +428,10 @@
                             <div class="item-info">
                                 <div class="item-header">
                                     <div class="item-name">${item.description}</div>
-                                    <div class="item-price">${item.price.toFixed(2)} ₽</div>
+                                    <div class="item-price">${price.toFixed(2)} ₽</div>
                                 </div>
                                 <div class="item-details">
-                                    <div class="item-quantity">Количество: ${item.quantity}</div>
+                                    <div class="item-quantity">Количество: ${quantity}</div>
                                     <div class="item-total">Итого: ${total.toFixed(2)} ₽</div>
                                 </div>
                             </div>
@@ -459,14 +463,14 @@
             const selectedCount = selectedItems.size;
             const selectedSum = Array.from(selectedItems).reduce((sum, index) => {
                 const item = receiptData.items[index];
-                return sum + (item.price * item.quantity);
+                return sum + Number(item.total_amount ?? 0);
             }, 0);
 
             document.getElementById('selectedCount').textContent = selectedCount;
             document.getElementById('selectedSum').textContent = `${selectedSum.toFixed(2)} ₽`;
 
             // Расчет пропорциональной скидки и сервисного сбора
-            const totalItemsSum = receiptData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const totalItemsSum = receiptData.items.reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0);
             const proportion = totalItemsSum > 0 ? selectedSum / totalItemsSum : 0;
 
             let discountAmount = 0;
@@ -474,7 +478,7 @@
             let finalTotal = selectedSum;
 
             if (receiptData.total_discount_amount && selectedSum > 0) {
-                discountAmount = receiptData.total_discount_amount * proportion;
+                discountAmount = Number(receiptData.total_discount_amount) * proportion;
                 finalTotal -= discountAmount;
                 document.getElementById('discountRow').style.display = 'flex';
                 document.getElementById('discountAmount').textContent = `-${discountAmount.toFixed(2)} ₽`;
@@ -483,7 +487,7 @@
             }
 
             if (receiptData.service_charge_percent && selectedSum > 0) {
-                serviceAmount = selectedSum * (receiptData.service_charge_percent / 100);
+                serviceAmount = selectedSum * (Number(receiptData.service_charge_percent) / 100);
                 finalTotal += serviceAmount;
                 document.getElementById('serviceRow').style.display = 'flex';
                 document.getElementById('serviceAmount').textContent = `+${serviceAmount.toFixed(2)} ₽`;
@@ -546,12 +550,12 @@
                 ...receiptData.items[index]
             }));
 
-            const totalItemsSum = receiptData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const selectedSum = selectedItemsData.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const totalItemsSum = receiptData.items.reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0);
+            const selectedSum = selectedItemsData.reduce((sum, item) => sum + Number(item.total_amount ?? 0), 0);
             const proportion = totalItemsSum > 0 ? selectedSum / totalItemsSum : 0;
 
-            const discountAmount = receiptData.total_discount_amount ? receiptData.total_discount_amount * proportion : 0;
-            const serviceAmount = receiptData.service_charge_percent ? selectedSum * (receiptData.service_charge_percent / 100) : 0;
+            const discountAmount = receiptData.total_discount_amount ? Number(receiptData.total_discount_amount) * proportion : 0;
+            const serviceAmount = receiptData.service_charge_percent ? selectedSum * (Number(receiptData.service_charge_percent) / 100) : 0;
             const finalTotal = selectedSum - discountAmount + serviceAmount;
 
             const data = {
