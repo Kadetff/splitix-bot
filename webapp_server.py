@@ -72,9 +72,9 @@ async def test_answer_webapp_query(request):
                 if 'message' in payload:
                     message_text += f"💬 **Сообщение**: `{payload['message']}`\n"
                 if 'items' in payload:
-                    # Для блоков кода экранирование НЕ нужно
+                    # Убираем блоки кода для массивов - используем обычный текст
                     items_str = str(payload['items'])
-                    message_text += f"📦 **Элементы**: `{items_str}`\n"
+                    message_text += f"📦 **Элементы**: {items_str}\n"
                 if 'count' in payload:
                     message_text += f"🔢 **Количество**: `{payload['count']}`\n"
             
