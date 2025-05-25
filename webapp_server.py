@@ -181,7 +181,6 @@ async def init_app() -> web.Application:
 
     # 4. Test page и статика — тоже без префикса в декораторах
     mount("/test_webapp", keep=True)
-    mount("/static",      keep=True)
 
 # ---------------------------------------------------------------------------
 # Entrypoint
