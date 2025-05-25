@@ -144,23 +144,7 @@ def health_check():
     """Проверка работоспособности API"""
     return jsonify({"status": "ok", "message": "API is running"})
 
-@app.route('/<int:message_id>')
-@app.route('/<int:message_id>/')
-def index_with_message_id(message_id):
-    """Обработка запроса с message_id в URL"""
-    logger.debug(f"Обработка запроса с message_id: {message_id}")
-    index_path = os.path.join(frontend_dir, 'index.html')
-    
-    if os.path.exists(index_path):
-        try:
-            return send_file(index_path)
-        except Exception as e:
-            logger.error(f"Ошибка при отправке файла: {e}")
-            return f"Ошибка при отправке файла: {e}", 500
-    else:
-        logger.error(f"Файл index.html не найден по пути: {index_path}")
-        return "Файл не найден", 404
-
+# API роуты должны быть ПЕРЕД роутом /<int:message_id> чтобы не перехватывались
 @app.route('/api/receipt/<int:message_id>', methods=['GET'])
 def get_receipt_data(message_id):
     """Получение данных чека по ID сообщения"""
@@ -417,6 +401,24 @@ def answer_webapp_query():
     except Exception as e:
         logger.error(f"Ошибка в answer_webapp_query endpoint: {e}")
         return jsonify({"error": str(e)}), 500
+
+# Роут с message_id должен быть в самом конце, чтобы не перехватывать API запросы
+@app.route('/<int:message_id>')
+@app.route('/<int:message_id>/')
+def index_with_message_id(message_id):
+    """Обработка запроса с message_id в URL"""
+    logger.debug(f"Обработка запроса с message_id: {message_id}")
+    index_path = os.path.join(frontend_dir, 'index.html')
+    
+    if os.path.exists(index_path):
+        try:
+            return send_file(index_path)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке файла: {e}")
+            return f"Ошибка при отправке файла: {e}", 500
+    else:
+        logger.error(f"Файл index.html не найден по пути: {index_path}")
+        return "Файл не найден", 404
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
