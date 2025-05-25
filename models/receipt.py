@@ -5,13 +5,13 @@ from pydantic import BaseModel, Field, field_validator
 class ReceiptItem(BaseModel):
     """Модель товарной позиции в чеке."""
     description: str
-    quantity_from_openai: Decimal = Field(default=1)
+    quantity: Decimal = Field(default=1, alias="quantity_from_openai")
     unit_price_from_openai: Optional[Decimal] = None
-    total_amount_from_openai: Optional[Decimal] = None
+    total_amount: Optional[Decimal] = Field(default=None, alias="total_amount_from_openai")
     discount_percent: Optional[Decimal] = None
     discount_amount: Optional[Decimal] = None
 
-    @field_validator('quantity_from_openai', 'unit_price_from_openai', 'total_amount_from_openai', 
+    @field_validator('quantity', 'unit_price_from_openai', 'total_amount', 
                'discount_percent', 'discount_amount', mode='before')
     def parse_decimal(cls, v):
         """Конвертирует строки и числа в Decimal."""
