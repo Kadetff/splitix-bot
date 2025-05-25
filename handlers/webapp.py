@@ -15,6 +15,53 @@ logger.propagate = False
 
 router = Router()
 
+async def handle_receipt_selection(message: Message, data: dict):
+    """Обрабатывает данные выбора позиций из чека"""
+    try:
+        selected_items = data.get('selected_items', [])
+        summary = data.get('summary', {})
+        message_id = data.get('message_id')
+        
+        logger.info(f"Обработка выбора позиций: message_id={message_id}, items_count={len(selected_items)}")
+        
+        # Формируем ответное сообщение
+        response = "✅ **Ваш выбор подтвержден!**\n\n"
+        
+        # Показываем выбранные позиции
+        if selected_items:
+            response += "📋 **Выбранные позиции:**\n"
+            for item in selected_items:
+                item_total = item['price'] * item['quantity']
+                response += f"• {escape_markdown(item['name'])} — {item['price']:.2f} ₽ × {item['quantity']} = {item_total:.2f} ₽\n"
+        
+        response += "\n💰 **Итоги:**\n"
+        response += f"📊 Позиций выбрано: {summary.get('items_count', 0)}\n"
+        response += f"💵 Сумма позиций: {summary.get('items_total', 0):.2f} ₽\n"
+        
+        if summary.get('discount_amount', 0) > 0:
+            response += f"🎉 Скидка: -{summary.get('discount_amount', 0):.2f} ₽\n"
+        
+        if summary.get('service_amount', 0) > 0:
+            response += f"💰 Сервисный сбор: +{summary.get('service_amount', 0):.2f} ₽\n"
+        
+        response += f"**💳 Итого к оплате: {summary.get('final_total', 0):.2f} ₽**"
+        
+        await message.answer(response, parse_mode="Markdown")
+        
+        # Убираем Reply-клавиатуру после подтверждения
+        from aiogram.types import ReplyKeyboardRemove
+        await message.answer(
+            "🎯 Выбор завершен! Клавиатура убрана.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обработке выбора позиций: {e}", exc_info=True)
+        await message.answer(
+            "❌ Произошла ошибка при обработке вашего выбора. Попробуйте еще раз.",
+            parse_mode="Markdown"
+        )
+
 def escape_markdown(text):
     """Экранирует специальные символы для Markdown"""
     if not isinstance(text, str):
@@ -57,7 +104,13 @@ async def handle_webapp_data_specific_filter(message: Message):
             data = json.loads(raw_data)
             logger.info(f"Parsed web_app_data: {data}")
 
-            # Извлекаем информацию о типе кнопки из данных
+            # Проверяем, это данные от приложения для работы с чеками
+            if 'selected_items' in data and 'summary' in data:
+                # Обрабатываем данные выбора позиций из чека
+                await handle_receipt_selection(message, data)
+                return
+
+            # Извлекаем информацию о типе кнопки из данных (для тестовых данных)
             button_type = data.get('button_type', 'unknown')
             query_id = data.get('query_id')
             payload = data.get('payload')

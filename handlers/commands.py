@@ -28,6 +28,47 @@ HELP_TEXT = (
 @router.message(Command("start"))
 async def cmd_start(message: Message):
     """Обработчик команды /start"""
+    # Проверяем, есть ли параметр receipt_id
+    command_args = message.text.split()
+    if len(command_args) > 1 and command_args[1].startswith("receipt_"):
+        # Извлекаем message_id из параметра
+        try:
+            receipt_param = command_args[1]  # receipt_123
+            message_id = int(receipt_param.split("_")[1])
+            
+            # Импортируем message_states для проверки существования чека
+            from handlers.photo import message_states
+            
+            if message_id in message_states:
+                # Создаем кнопку Mini App для конкретного чека
+                clean_url = WEBAPP_URL.strip('"\'')
+                webapp_url = f"{clean_url}/app/{message_id}"
+                
+                builder = InlineKeyboardBuilder()
+                webapp_button = InlineKeyboardButton(
+                    text="🚀 Открыть Mini App",
+                    web_app=WebAppInfo(url=webapp_url)
+                )
+                builder.row(webapp_button)
+                
+                await message.answer(
+                    "📋 Открываю чек для выбора позиций.\n\n"
+                    "👆 Нажмите кнопку выше, чтобы открыть Mini App и выбрать свои позиции из чека.",
+                    reply_markup=builder.as_markup()
+                )
+                return
+            else:
+                await message.answer(
+                    "❌ Чек не найден или устарел.\n\n"
+                    "Возможно, данные чека были удалены или ссылка неактуальна."
+                )
+                return
+                
+        except (ValueError, IndexError) as e:
+            logger.error(f"Ошибка парсинга параметра receipt: {e}")
+            # Продолжаем с обычным приветствием
+    
+    # Обычное приветствие без параметров
     await message.answer(
         "👋 Привет! Я бот для разделения чеков.\n\n"
         "📸 Отправь мне фото чека, и я помогу разделить его между участниками.\n\n"

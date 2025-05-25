@@ -123,6 +123,15 @@ async def process_receipt_photo(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
         
+        # Добавляем Reply-клавиатуру с кнопкой Mini App (только для личного чата)
+        if message.chat.type == "private":
+            from utils.keyboards import create_receipt_reply_keyboard
+            reply_keyboard = create_receipt_reply_keyboard(processing_message.message_id)
+            await message.answer(
+                "👆 Используйте кнопку Mini App выше или кнопку ниже для выбора позиций:",
+                reply_markup=reply_keyboard
+            )
+        
         await state.set_state(ReceiptStates.waiting_for_items_selection)
         
     except Exception as e:

@@ -24,13 +24,18 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 ENABLE_TEST_COMMANDS = os.getenv("ENABLE_TEST_COMMANDS", "true").lower() == "true"
 
 def index():
-    """Главная страница - отдаем тестовое приложение"""
-    logger.debug("Вызвана функция index() - отдаем тестовое приложение")
-    test_page_path = os.path.join(frontend_dir, 'debug', 'test_webapp.html')
-    if os.path.exists(test_page_path):
-        return send_file(test_page_path)
+    """Главная страница - отдаем основное приложение"""
+    logger.debug("Вызвана функция index() - отдаем основное приложение")
+    index_page_path = os.path.join(frontend_dir, 'index.html')
+    if os.path.exists(index_page_path):
+        return send_file(index_page_path)
     else:
-        return "Тестовое приложение не найдено", 404
+        # Fallback на тестовое приложение
+        test_page_path = os.path.join(frontend_dir, 'debug', 'test_webapp.html')
+        if os.path.exists(test_page_path):
+            return send_file(test_page_path)
+        else:
+            return "Приложение не найдено", 404
 
 @app.route('/test_webapp')
 @app.route('/test_webapp/')
@@ -50,6 +55,12 @@ def test_webapp_page():
     else:
         logger.error(f"Тестовый файл test_webapp.html не найден по пути: {test_page_path}")
         return "Тестовый файл не найден", 404
+
+@app.route('/app/<int:message_id>')
+def receipt_app(message_id):
+    """Отдаем основное приложение для конкретного чека"""
+    logger.debug(f"Запрос к приложению для message_id: {message_id}")
+    return index()
 
 @app.route('/')
 def test_root_handler():
@@ -75,9 +86,25 @@ def health_check():
     """Проверка работоспособности API"""
     return jsonify({"status": "ok", "message": "API is running"})
 
-# Удалены API endpoints для работы с данными чеков - теперь используем только тестовое приложение
-
-# Удалены maintenance endpoints - больше не нужны для тестового приложения
+@app.route('/api/receipt/<int:message_id>')
+def get_receipt_data(message_id):
+    """Получение данных чека по message_id"""
+    try:
+        # Импортируем message_states из handlers.photo
+        from handlers.photo import message_states
+        
+        if message_id not in message_states:
+            logger.warning(f"Данные чека не найдены для message_id: {message_id}")
+            return jsonify({"error": "Receipt data not found"}), 404
+        
+        receipt_data = message_states[message_id]
+        logger.info(f"Отдаю данные чека для message_id: {message_id}")
+        
+        return jsonify(receipt_data)
+        
+    except Exception as e:
+        logger.error(f"Ошибка при получении данных чека: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/answer_webapp_query', methods=['POST'])
 def answer_webapp_query():

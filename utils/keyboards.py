@@ -22,14 +22,37 @@ def create_receipt_keyboard(message_id: int, chat_type: str = "private") -> Inli
     
     # Очищаем URL от кавычек, если они есть
     clean_url = WEBAPP_URL.strip('"\'')
-    webapp_url = f"{clean_url}/{message_id}"
+    webapp_url = f"{clean_url}/app/{message_id}"
     
-    # Убраны кнопки веб-интерфейса - используем только тестовое приложение
-    if chat_type != "private":
-        # Для группового чата - только кнопка промежуточного итога
+    try:
+        # Кнопка Mini App (основная функциональность)
+        if chat_type == "private":
+            # В личном чате - прямая кнопка Mini App
+            webapp_button = InlineKeyboardButton(
+                text="🚀 Открыть Mini App",
+                web_app=WebAppInfo(url=webapp_url)
+            )
+            builder.row(webapp_button)
+        else:
+            # В групповом чате - кнопка для открытия в ЛС
+            webapp_button = InlineKeyboardButton(
+                text="🚀 Открыть Mini App (в ЛС)",
+                url=f"https://t.me/{BOT_USERNAME}?start=receipt_{message_id}"
+            )
+            builder.row(webapp_button)
+            
+            # Кнопка промежуточного итога для группового чата
+            builder.row(InlineKeyboardButton(
+                text="📊 Промежуточный итог",
+                callback_data=f"show_intermediate_summary:{message_id}"
+            ))
+    
+    except Exception as e:
+        logger.error(f"Ошибка при создании Mini App кнопки: {e}", exc_info=True)
+        # Fallback кнопка при ошибке
         builder.row(InlineKeyboardButton(
-            text="📊 Промежуточный итог",
-            callback_data=f"show_intermediate_summary:{message_id}"
+            text="❌ Ошибка создания Mini App",
+            callback_data="webapp_error"
         ))
     
     # Кнопка с инструкцией (общая для обоих режимов)
@@ -99,6 +122,40 @@ def create_test_webapp_reply_keyboard(webapp_url: str) -> ReplyKeyboardMarkup:
         
     except Exception as e:
         logger.error(f"Ошибка при создании Reply WebApp кнопки: {e}", exc_info=True)
+        # Fallback кнопка при ошибке
+        builder.row(KeyboardButton(text="❌ Ошибка создания WebApp"))
+        builder.row(KeyboardButton(text="🔙 Убрать клавиатуру"))
+    
+    return builder.as_markup(resize_keyboard=True, one_time_keyboard=False)
+
+def create_receipt_reply_keyboard(message_id: int) -> ReplyKeyboardMarkup:
+    """
+    Создает Reply-клавиатуру с кнопкой WebApp для работы с чеком.
+    
+    Args:
+        message_id: ID сообщения с чеком
+        
+    Returns:
+        ReplyKeyboardMarkup с кнопкой WebApp
+    """
+    builder = ReplyKeyboardBuilder()
+    
+    # Очищаем URL от кавычек, если они есть
+    clean_url = WEBAPP_URL.strip('"\'')
+    webapp_url = f"{clean_url}/app/{message_id}"
+    
+    try:
+        webapp_button = KeyboardButton(
+            text="🚀 Открыть Mini App",
+            web_app=WebAppInfo(url=webapp_url)
+        )
+        builder.row(webapp_button)
+        
+        # Кнопка для убирания клавиатуры
+        builder.row(KeyboardButton(text="🔙 Убрать клавиатуру"))
+        
+    except Exception as e:
+        logger.error(f"Ошибка при создании Reply WebApp кнопки для чека: {e}", exc_info=True)
         # Fallback кнопка при ошибке
         builder.row(KeyboardButton(text="❌ Ошибка создания WebApp"))
         builder.row(KeyboardButton(text="🔙 Убрать клавиатуру"))

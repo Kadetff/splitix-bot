@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Раздели чек</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #000000;
+            --tg-theme-hint-color: #999999;
+            --tg-theme-link-color: #2481cc;
+            --tg-theme-button-color: #2481cc;
+            --tg-theme-button-text-color: #ffffff;
+            --tg-theme-secondary-bg-color: #f1f1f1;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+            line-height: 1.4;
+            padding: 16px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--tg-theme-hint-color);
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--tg-theme-hint-color);
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .receipt-info {
+            background: var(--tg-theme-secondary-bg-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .receipt-info h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .total-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .total-info.main {
+            font-weight: 600;
+            font-size: 16px;
+            padding-top: 8px;
+            border-top: 1px solid var(--tg-theme-hint-color);
+        }
+
+        .items-list {
+            margin-bottom: 24px;
+        }
+
+        .item {
+            background: var(--tg-theme-secondary-bg-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+
+        .item:hover {
+            transform: translateY(-1px);
+        }
+
+        .item.selected {
+            border-color: var(--tg-theme-button-color);
+            background: rgba(36, 129, 204, 0.1);
+        }
+
+        .item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .item-name {
+            font-weight: 600;
+            font-size: 16px;
+            flex: 1;
+            margin-right: 12px;
+        }
+
+        .item-price {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--tg-theme-button-color);
+        }
+
+        .item-details {
+            color: var(--tg-theme-hint-color);
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-quantity {
+            font-size: 14px;
+        }
+
+        .item-total {
+            font-weight: 500;
+        }
+
+        .selection-summary {
+            background: var(--tg-theme-secondary-bg-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+            position: sticky;
+            bottom: 80px;
+            z-index: 10;
+        }
+
+        .selection-summary h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .summary-row.total {
+            font-weight: 600;
+            font-size: 16px;
+            padding-top: 8px;
+            border-top: 1px solid var(--tg-theme-hint-color);
+        }
+
+        .confirm-button {
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            right: 16px;
+            max-width: 480px;
+            margin: 0 auto;
+            background: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+
+        .confirm-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .confirm-button:not(:disabled):hover {
+            opacity: 0.9;
+        }
+
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--tg-theme-hint-color);
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .item.selected .checkbox {
+            background: var(--tg-theme-button-color);
+            border-color: var(--tg-theme-button-color);
+        }
+
+        .item.selected .checkbox::after {
+            content: '✓';
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .item-content {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 12px;
+            }
+            
+            .confirm-button {
+                left: 12px;
+                right: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Раздели чек</h1>
+            <p>Выберите свои позиции из чека</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <p>⏳ Загружаю данные чека...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;">
+            <p>❌ Ошибка загрузки данных чека</p>
+        </div>
+
+        <div id="content" style="display: none;">
+            <div id="receiptInfo" class="receipt-info">
+                <h3>💰 Информация о чеке</h3>
+                <div id="receiptTotals"></div>
+            </div>
+
+            <div id="itemsList" class="items-list"></div>
+
+            <div id="selectionSummary" class="selection-summary">
+                <h3>📊 Ваш выбор</h3>
+                <div id="summaryContent">
+                    <div class="summary-row">
+                        <span>Позиций выбрано:</span>
+                        <span id="selectedCount">0</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Сумма позиций:</span>
+                        <span id="selectedSum">0 ₽</span>
+                    </div>
+                    <div class="summary-row" id="discountRow" style="display: none;">
+                        <span>Скидка:</span>
+                        <span id="discountAmount">0 ₽</span>
+                    </div>
+                    <div class="summary-row" id="serviceRow" style="display: none;">
+                        <span>Сервисный сбор:</span>
+                        <span id="serviceAmount">0 ₽</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Итого к оплате:</span>
+                        <span id="totalAmount">0 ₽</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button id="confirmButton" class="confirm-button" disabled>
+            Подтвердить выбор
+        </button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        let receiptData = null;
+        let selectedItems = new Set();
+        let isInlineButton = false;
+        let queryId = null;
+
+        // Инициализация Telegram WebApp
+        if (tg) {
+            tg.ready();
+            tg.expand();
+            tg.enableClosingConfirmation = false;
+            
+            // Определяем тип кнопки
+            if (tg.initDataUnsafe && tg.initDataUnsafe.query_id) {
+                queryId = tg.initDataUnsafe.query_id;
+                isInlineButton = true;
+            }
+        }
+
+        // Получение message_id из URL
+        function getMessageId() {
+            const path = window.location.pathname;
+            const match = path.match(/\/app\/(\d+)$/);
+            return match ? match[1] : null;
+        }
+
+        // Загрузка данных чека
+        async function loadReceiptData() {
+            const messageId = getMessageId();
+            if (!messageId) {
+                showError('Не удалось определить ID сообщения');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/receipt/${messageId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                receiptData = await response.json();
+                renderReceipt();
+            } catch (error) {
+                console.error('Ошибка загрузки данных:', error);
+                showError('Не удалось загрузить данные чека');
+            }
+        }
+
+        // Отображение ошибки
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').querySelector('p').textContent = `❌ ${message}`;
+        }
+
+        // Отображение чека
+        function renderReceipt() {
+            if (!receiptData || !receiptData.items) {
+                showError('Некорректные данные чека');
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+
+            renderReceiptInfo();
+            renderItems();
+            updateSummary();
+        }
+
+        // Отображение информации о чеке
+        function renderReceiptInfo() {
+            const totalsDiv = document.getElementById('receiptTotals');
+            let html = '';
+
+            const itemsTotal = receiptData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            html += `<div class="total-info"><span>Сумма позиций:</span><span>${itemsTotal.toFixed(2)} ₽</span></div>`;
+
+            if (receiptData.total_discount_amount) {
+                html += `<div class="total-info"><span>Скидка:</span><span>-${receiptData.total_discount_amount.toFixed(2)} ₽</span></div>`;
+            }
+
+            if (receiptData.service_charge_percent) {
+                const serviceAmount = itemsTotal * (receiptData.service_charge_percent / 100);
+                html += `<div class="total-info"><span>Сервисный сбор (${receiptData.service_charge_percent}%):</span><span>+${serviceAmount.toFixed(2)} ₽</span></div>`;
+            }
+
+            if (receiptData.total_check_amount) {
+                html += `<div class="total-info main"><span>Итого по чеку:</span><span>${receiptData.total_check_amount.toFixed(2)} ₽</span></div>`;
+            }
+
+            totalsDiv.innerHTML = html;
+        }
+
+        // Отображение позиций
+        function renderItems() {
+            const itemsList = document.getElementById('itemsList');
+            let html = '';
+
+            receiptData.items.forEach((item, index) => {
+                const total = item.price * item.quantity;
+                html += `
+                    <div class="item" data-index="${index}" onclick="toggleItem(${index})">
+                        <div class="item-content">
+                            <div class="checkbox"></div>
+                            <div class="item-info">
+                                <div class="item-header">
+                                    <div class="item-name">${item.name}</div>
+                                    <div class="item-price">${item.price.toFixed(2)} ₽</div>
+                                </div>
+                                <div class="item-details">
+                                    <div class="item-quantity">Количество: ${item.quantity}</div>
+                                    <div class="item-total">Итого: ${total.toFixed(2)} ₽</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            itemsList.innerHTML = html;
+        }
+
+        // Переключение выбора позиции
+        function toggleItem(index) {
+            const item = document.querySelector(`[data-index="${index}"]`);
+            
+            if (selectedItems.has(index)) {
+                selectedItems.delete(index);
+                item.classList.remove('selected');
+            } else {
+                selectedItems.add(index);
+                item.classList.add('selected');
+            }
+
+            updateSummary();
+        }
+
+        // Обновление сводки
+        function updateSummary() {
+            const selectedCount = selectedItems.size;
+            const selectedSum = Array.from(selectedItems).reduce((sum, index) => {
+                const item = receiptData.items[index];
+                return sum + (item.price * item.quantity);
+            }, 0);
+
+            document.getElementById('selectedCount').textContent = selectedCount;
+            document.getElementById('selectedSum').textContent = `${selectedSum.toFixed(2)} ₽`;
+
+            // Расчет пропорциональной скидки и сервисного сбора
+            const totalItemsSum = receiptData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const proportion = totalItemsSum > 0 ? selectedSum / totalItemsSum : 0;
+
+            let discountAmount = 0;
+            let serviceAmount = 0;
+            let finalTotal = selectedSum;
+
+            if (receiptData.total_discount_amount && selectedSum > 0) {
+                discountAmount = receiptData.total_discount_amount * proportion;
+                finalTotal -= discountAmount;
+                document.getElementById('discountRow').style.display = 'flex';
+                document.getElementById('discountAmount').textContent = `-${discountAmount.toFixed(2)} ₽`;
+            } else {
+                document.getElementById('discountRow').style.display = 'none';
+            }
+
+            if (receiptData.service_charge_percent && selectedSum > 0) {
+                serviceAmount = selectedSum * (receiptData.service_charge_percent / 100);
+                finalTotal += serviceAmount;
+                document.getElementById('serviceRow').style.display = 'flex';
+                document.getElementById('serviceAmount').textContent = `+${serviceAmount.toFixed(2)} ₽`;
+            } else {
+                document.getElementById('serviceRow').style.display = 'none';
+            }
+
+            document.getElementById('totalAmount').textContent = `${finalTotal.toFixed(2)} ₽`;
+
+            // Активация кнопки подтверждения
+            const confirmButton = document.getElementById('confirmButton');
+            confirmButton.disabled = selectedCount === 0;
+        }
+
+        // Отправка данных в Telegram
+        async function sendDataToTelegram(data) {
+            try {
+                if (isInlineButton && queryId) {
+                    // Для Inline-кнопок используем answerWebAppQuery
+                    const response = await fetch('/api/answer_webapp_query', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            query_id: queryId,
+                            data: data,
+                            title: "Выбор позиций подтвержден",
+                            description: `Выбрано позиций: ${data.selected_items.length}`
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    return true;
+                } else {
+                    // Для Reply-кнопок используем sendData
+                    if (tg && typeof tg.sendData === 'function') {
+                        tg.sendData(JSON.stringify(data));
+                        return true;
+                    } else {
+                        throw new Error('tg.sendData недоступен');
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка отправки данных:', error);
+                alert(`Ошибка отправки данных: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Подтверждение выбора
+        async function confirmSelection() {
+            if (selectedItems.size === 0) return;
+
+            const selectedItemsData = Array.from(selectedItems).map(index => ({
+                index: index,
+                ...receiptData.items[index]
+            }));
+
+            const totalItemsSum = receiptData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const selectedSum = selectedItemsData.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const proportion = totalItemsSum > 0 ? selectedSum / totalItemsSum : 0;
+
+            const discountAmount = receiptData.total_discount_amount ? receiptData.total_discount_amount * proportion : 0;
+            const serviceAmount = receiptData.service_charge_percent ? selectedSum * (receiptData.service_charge_percent / 100) : 0;
+            const finalTotal = selectedSum - discountAmount + serviceAmount;
+
+            const data = {
+                message_id: getMessageId(),
+                selected_items: selectedItemsData,
+                summary: {
+                    items_total: selectedSum,
+                    discount_amount: discountAmount,
+                    service_amount: serviceAmount,
+                    final_total: finalTotal,
+                    items_count: selectedItems.size
+                },
+                timestamp: Date.now()
+            };
+
+            const confirmButton = document.getElementById('confirmButton');
+            confirmButton.disabled = true;
+            confirmButton.textContent = 'Отправляю...';
+
+            const success = await sendDataToTelegram(data);
+            
+            if (success) {
+                confirmButton.textContent = '✅ Отправлено';
+                // Закрываем WebApp через 1 секунду
+                setTimeout(() => {
+                    if (tg && tg.close) {
+                        tg.close();
+                    }
+                }, 1000);
+            } else {
+                confirmButton.disabled = false;
+                confirmButton.textContent = 'Подтвердить выбор';
+            }
+        }
+
+        // Обработчик кнопки подтверждения
+        document.getElementById('confirmButton').addEventListener('click', confirmSelection);
+
+        // Загрузка данных при загрузке страницы
+        document.addEventListener('DOMContentLoaded', loadReceiptData);
+    </script>
+</body>
+</html> 
