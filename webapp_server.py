@@ -123,88 +123,128 @@ async def test_answer_webapp_query(request):
         logger.error(f"Ошибка в test_answer_webapp_query: {e}")
         return web.json_response({"error": str(e)}, status=500)
 
-async def init_app():
-    """Инициализация и запуск объединенного приложения."""
-    
-    logger.info("Инициализация объединенного приложения...")
-    
-    # Создаем основное приложение с ботом
-    bot_app = await create_app()
-    
-    # Добавляем прямой API endpoint в aiohttp
-    logger.info("Добавляю API endpoint /api/answer_webapp_query")
-    bot_app.router.add_post('/api/answer_webapp_query', test_answer_webapp_query)
-    
-    # Импортируем Flask приложение
-    from webapp.backend.server import app as flask_app
-    
-    # Создаем WSGI handler для Flask
-    wsgi_handler = WSGIHandler(flask_app)
-    
-    # Обертка для логирования запросов и исправления путей
-    async def logged_wsgi_handler(request):
-        logger.debug(f"WSGI handler: {request.method} {request.path_qs}")
-        return await wsgi_handler(request)
-    
-    # Специальная обертка для маршрутов с префиксами
-    def prefixed_wsgi_handler(prefix):
-        # Создаем отдельный WSGIHandler с кастомной обработкой
-        class PrefixedWSGIHandler(WSGIHandler):
-            def __init__(self, wsgi_app, prefix):
-                super().__init__(wsgi_app)
-                self.prefix = prefix
-            
-            async def __call__(self, request):
-                # Восстанавливаем полный путь для Flask
-                original_path = request.path
-                path_info = request.match_info.get('path_info', '')
-                full_path = f"{self.prefix}/{path_info}" if path_info else self.prefix
-                
-                logger.debug(f"WSGI handler: {request.method} {original_path} -> {full_path}")
-                
-                # Получаем тело запроса
-                body = await request.read()
-                content_length = len(body)
-                
-                # Создаем environ с правильным путем
-                environ = self._get_environ(request, body, content_length)
-                environ['PATH_INFO'] = full_path
-                environ['REQUEST_URI'] = full_path
-                
-                # Запускаем WSGI приложение
-                return self.run_wsgi_app(environ, request)
-        
-        # Возвращаем экземпляр обработчика
-        return PrefixedWSGIHandler(flask_app, prefix)
-    
-    # Добавляем специфичные маршруты для WebApp
-    
-    # Тестовая страница WebApp
-    logger.info("Регистрирую роуты для /test_webapp")
-    bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', prefixed_wsgi_handler('/test_webapp'))
-    bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', prefixed_wsgi_handler('/test_webapp'))
-    
-    # Основное приложение для работы с чеками
-    logger.info("Регистрирую роуты для /app/<message_id>")
-    bot_app.router.add_route('GET', '/app/{path_info:.*}', prefixed_wsgi_handler('/app'))
-    
-    # API маршруты - ВЫСОКИЙ ПРИОРИТЕТ
-    bot_app.router.add_route('*', '/api/{path_info:.*}', prefixed_wsgi_handler('/api'))
-    
-    # Утилитарные маршруты
-    bot_app.router.add_route('*', '/health{path_info:.*}', prefixed_wsgi_handler('/health'))
-    
+# Application factory
+# ---------------------------------------------------------------------------
 
-    
-    # Корневая страница и fallback маршруты - САМЫЙ НИЗКИЙ ПРИОРИТЕТ
-    bot_app.router.add_route('GET', '/{path_info:/?}', logged_wsgi_handler)
-    bot_app.router.add_route('GET', '/{path_info:.*}', logged_wsgi_handler)
-    
-    logger.info("Все роуты зарегистрированы")
-    
-    logger.info("Объединенный сервер (Telegram Bot + WebApp) готов к запуску")
-    logger.info(f"Webhook path защищен от перехвата Flask маршрутами")
+async def init_app() -> web.Application:
+    """Builds the unified aiohttp application."""
+
+    # 1. aiogram bot app (brings its own routes, webhook, etc.)
+    bot_app = await create_app()
+
+    # 2. Our explicit JSON endpoint with higher priority than generic /api/*
+    bot_app.router.add_post("/api/answer_webapp_query", test_answer_webapp_query)
+
+    # 3. Import Flask WSGI application (located in webapp/backend/server.py)
+    from webapp.backend.server import app as flask_app
+
+    def mount_wsgi(prefix: str):
+        """Mounts *the same* Flask app under a given URL prefix."""
+        handler = WSGIHandler(flask_app, script_name=prefix)
+        # exact URL (no trailing slash)
+        bot_app.router.add_route("*", prefix, handler)
+        # everything below it
+        bot_app.router.add_route("*", f"{prefix}{{path_info:/.*}}", handler)
+
+    # 4. Flask sub‑apps
+    mount_wsgi("/test_webapp")
+    mount_wsgi("/app")
+    mount_wsgi("/api")   # other API endpoints
+    mount_wsgi("/health")
+
+    # 5. Fallback – root and anything else → Flask
+    root_handler = WSGIHandler(flask_app)
+    bot_app.router.add_route("*", "/{path_info:.*}", root_handler)
+
+    logger.info("Unified server is ready – bot and Flask mounted")
     return bot_app
+
+# ---------------------------------------------------------------------------
+# Entrypoint
+# ---------------------------------------------------------------------------
+
+#async def init_app():
+#    """Инициализация и запуск объединенного приложения."""
+#    
+#    logger.info("Инициализация объединенного приложения...")
+#    
+#    # Создаем основное приложение с ботом
+#    bot_app = await create_app()
+#    
+#    # Добавляем прямой API endpoint в aiohttp
+#    logger.info("Добавляю API endpoint /api/answer_webapp_query")
+#    bot_app.router.add_post('/api/answer_webapp_query', test_answer_webapp_query)
+#    
+#    # Импортируем Flask приложение
+#    from webapp.backend.server import app as flask_app
+#    
+#    # Создаем WSGI handler для Flask
+#    wsgi_handler = WSGIHandler(flask_app)
+#    
+#    # Обертка для логирования запросов и исправления путей
+#    async def logged_wsgi_handler(request):
+#        logger.debug(f"WSGI handler: {request.method} {request.path_qs}")
+#        return await wsgi_handler(request)
+#    
+#    # Специальная обертка для маршрутов с префиксами
+#    def prefixed_wsgi_handler(prefix):
+#        # Создаем отдельный WSGIHandler с кастомной обработкой
+#        class PrefixedWSGIHandler(WSGIHandler):
+#            def __init__(self, wsgi_app, prefix):
+#                super().__init__(wsgi_app)
+#                self.prefix = prefix
+#            
+#            async def __call__(self, request):
+#                # Восстанавливаем полный путь для Flask
+#                original_path = request.path
+#                path_info = request.match_info.get('path_info', '')
+#                full_path = f"{self.prefix}/{path_info}" if path_info else self.prefix
+#                
+#                logger.debug(f"WSGI handler: {request.method} {original_path} -> {full_path}")
+#                
+#                # Получаем тело запроса
+#                body = await request.read()
+#                content_length = len(body)
+#                
+#                # Создаем environ с правильным путем
+#                environ = self._get_environ(request, body, content_length)
+#                environ['PATH_INFO'] = full_path
+#                environ['REQUEST_URI'] = full_path
+#                
+#                # Запускаем WSGI приложение
+#                return self.run_wsgi_app(environ, request)
+#        
+#        # Возвращаем экземпляр обработчика
+#        return PrefixedWSGIHandler(flask_app, prefix)
+#    
+#    # Добавляем специфичные маршруты для WebApp
+#    
+#    # Тестовая страница WebApp
+#    logger.info("Регистрирую роуты для /test_webapp")
+#    bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', prefixed_wsgi_handler('/test_webapp'))
+#    bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', prefixed_wsgi_handler('/test_webapp'))
+#    
+#    # Основное приложение для работы с чеками
+#    logger.info("Регистрирую роуты для /app/<message_id>")
+#    bot_app.router.add_route('GET', '/app/{path_info:.*}', prefixed_wsgi_handler('/app'))
+#    
+#    # API маршруты - ВЫСОКИЙ ПРИОРИТЕТ
+#    bot_app.router.add_route('*', '/api/{path_info:.*}', prefixed_wsgi_handler('/api'))
+#    
+#    # Утилитарные маршруты
+#    bot_app.router.add_route('*', '/health{path_info:.*}', prefixed_wsgi_handler('/health'))
+#    
+#
+#    
+#    # Корневая страница и fallback маршруты - САМЫЙ НИЗКИЙ ПРИОРИТЕТ
+#    bot_app.router.add_route('GET', '/{path_info:/?}', logged_wsgi_handler)
+#    bot_app.router.add_route('GET', '/{path_info:.*}', logged_wsgi_handler)
+#    
+#    logger.info("Все роуты зарегистрированы")
+#    
+#    logger.info("Объединенный сервер (Telegram Bot + WebApp) готов к запуску")
+#    logger.info(f"Webhook path защищен от перехвата Flask маршрутами")
+#    return bot_app
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
