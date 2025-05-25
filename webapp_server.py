@@ -153,14 +153,11 @@ async def init_app():
     bot_app.router.add_route('GET', '/test_webapp{path_info:/?}', logged_wsgi_handler)
     bot_app.router.add_route('GET', '/test_webapp{path_info:/.*}', logged_wsgi_handler)
     
-    # API маршруты (остальные API кроме answer_webapp_query) - ВЫСОКИЙ ПРИОРИТЕТ
-    bot_app.router.add_route('*', '/api/receipt/{path_info:.*}', logged_wsgi_handler)
-    bot_app.router.add_route('*', '/api/selection/{path_info:.*}', logged_wsgi_handler)
+    # API маршруты (только для тестирования) - ВЫСОКИЙ ПРИОРИТЕТ
     bot_app.router.add_route('*', '/api/{path_info:.*}', logged_wsgi_handler)
     
     # Утилитарные маршруты
     bot_app.router.add_route('*', '/health{path_info:.*}', logged_wsgi_handler)
-    bot_app.router.add_route('*', '/maintenance/{path_info:.*}', logged_wsgi_handler)
     
     # Маршруты для чеков (числовые ID) - НИЗКИЙ ПРИОРИТЕТ
     # Исключаем пути, начинающиеся с /api/, /health, /maintenance
