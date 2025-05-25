@@ -140,13 +140,19 @@ async def init_app() -> web.Application:
     wsgi = WSGIHandler(flask_app)
 
     def mount(prefix: str):
-        """Register two routes so that *prefix* and *prefix/...* hit the same handler."""
-        bot_app.router.add_route("*", prefix, wsgi)
-        bot_app.router.add_route("*", f"{prefix}{{path_info:/.*}}", wsgi)
+        """Register a single route so that prefix and any sub‑path hit the same handler.
+        The pattern ``{path_info:.*}`` *always* fills match_info['path_info'] (even when empty),
+        which `aiohttp_wsgi` requires. Explicit exact‑match route is **not** needed.
+        """
+        bot_app.router.add_route("*", f"{prefix}{{path_info:.*}}", wsgi)
 
     # 4. Mount Flask behind several prefixes
     for p in ("/test_webapp", "/app", "/api", "/health"):
         mount(p)
+
+    # 5. Fallback – everything else → Flask
+    bot_app.router.add_route("*", "/{path_info:.*}", wsgi)
+
 
     # 5. Fallback – everything else → Flask
     bot_app.router.add_route("*", "/{path_info:.*}", wsgi)
